@@ -168,6 +168,27 @@ export async function exportAll() {
   };
 }
 
+/** Merges a file produced by exportAll() into this browser's database. Returns counts per store. */
+export async function importAll(text: string) {
+  let data: Partial<Awaited<ReturnType<typeof exportAll>>>;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('That file is not valid JSON.');
+  }
+  if (data.format !== 'chessy-export') throw new Error('That file is not a Chessy export.');
+  const d = await db();
+  const counts = { games: 0, analyses: 0, repertoire: 0, attempts: 0, coachMemory: 0 };
+  for (const store of Object.keys(counts) as (keyof typeof counts)[]) {
+    const rows = (data[store] ?? []) as never[];
+    if (!Array.isArray(rows)) continue;
+    const tx = d.transaction(store, 'readwrite');
+    await Promise.all([...rows.map((r) => tx.store.put(r)), tx.done]);
+    counts[store] = rows.length;
+  }
+  return counts;
+}
+
 export async function clearStore(name: 'games' | 'analyses' | 'evalCache' | 'repertoire' | 'attempts' | 'coachMemory') {
   await (await db()).clear(name);
 }

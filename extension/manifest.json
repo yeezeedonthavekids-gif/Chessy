@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Chessy — Chess Coach",
+  "short_name": "Chessy",
+  "version": "0.0.0",
+  "description": "Free, local-first chess coach: review completed games with Stockfish, train tactics and endgames, and track your progress.",
+  "minimum_chrome_version": "109",
+  "action": {
+    "default_title": "Open Chessy",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

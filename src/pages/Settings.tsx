@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { IconAlert, IconCheck } from '../components/Icons';
-import { clearMemory, clearStore, deleteEverything, exportAll } from '../lib/storage/db';
+import { clearMemory, clearStore, deleteEverything, exportAll, importAll } from '../lib/storage/db';
 import { reloadData } from '../state/data';
 import { refreshLiveStatus } from '../state/liveStatus';
 import { LEVEL_LABEL, getApiKey, setApiKey, settingsStore, type Settings as S, type SkillLevel } from '../state/settings';
@@ -10,6 +10,8 @@ export default function Settings() {
   const s = useStore(settingsStore);
   const [key, setKey] = useState(getApiKey());
   const [saved, setSaved] = useState<string | null>(null);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const update = (patch: Partial<S>) => settingsStore.set((prev) => ({ ...prev, ...patch }));
   const flash = (msg: string) => {
     setSaved(msg);
@@ -182,9 +184,29 @@ export default function Settings() {
 
         <section className="card stack">
           <h2>Your data</h2>
-          <p className="small muted">Games, analyses, repertoire, puzzle history and coach memory live in this browser's IndexedDB. Export them, or delete them at any time.</p>
+          <p className="small muted">Games, analyses, repertoire, puzzle history and coach memory live in this browser's IndexedDB. Export them (for a backup, or to move between the web app and the Chrome extension), import an export, or delete them at any time.</p>
+          {importMsg && <p className="small">{importMsg}</p>}
           <div className="row wrap">
             <button className="btn" onClick={() => void download()}>Export all data (JSON)</button>
+            <button className="btn" onClick={() => importRef.current?.click()}>Import data</button>
+            <input
+              ref={importRef}
+              type="file"
+              accept=".json,application/json"
+              hidden
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (!f) return;
+                try {
+                  const c = await importAll(await f.text());
+                  await reloadData();
+                  setImportMsg(`Imported ${c.games} games, ${c.analyses} analyses, ${c.repertoire} repertoire lines and ${c.attempts + c.coachMemory} training records.`);
+                } catch (err) {
+                  setImportMsg((err as Error).message);
+                }
+              }}
+            />
             <button className="btn" onClick={async () => { await clearStore('evalCache'); flash('Engine cache cleared'); }}>Clear engine cache</button>
             <button className="btn" onClick={async () => { await clearMemory(); flash('Coach memory cleared'); }}>Clear coach memory</button>
             <button className="btn" onClick={async () => { await clearStore('attempts'); flash('Puzzle history cleared'); }}>Clear puzzle history</button>

@@ -6,3 +6,5 @@ public/engine
 coverage
 .env
 .env.*
+dist-extension
+*.zip

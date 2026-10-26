@@ -29,3 +29,19 @@ describe('IndexedDB storage', () => {
     expect(JSON.stringify(data)).not.toMatch(/apiKey|aiKey/);
   });
 });
+
+describe('data import', () => {
+  it('restores a Chessy export and rejects other files', async () => {
+    const { importAll } = await import('../src/lib/storage/db');
+    await deleteEverything();
+    const g = toStoredGame(parseGame(OPERA_GAME), 'pgn', {});
+    await putGames([g]);
+    const backup = JSON.stringify(await exportAll());
+    await deleteEverything();
+    const counts = await importAll(backup);
+    expect(counts.games).toBe(1);
+    expect((await listGames()).map((x) => x.id)).toEqual([g.id]);
+    await expect(importAll('{"hello":1}')).rejects.toThrow(/not a Chessy export/);
+    await expect(importAll('nope')).rejects.toThrow(/not valid JSON/);
+  });
+});

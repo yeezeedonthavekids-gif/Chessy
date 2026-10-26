@@ -11,6 +11,7 @@
 ## Contents
 
 - [Quick start](#quick-start)
+- [Chrome extension](#chrome-extension)
 - [Features](#features)
 - [Fair play](#fair-play)
 - [Chess.com and Lichess integration](#chesscom-and-lichess-integration)
@@ -40,6 +41,38 @@ npm run preview    # serves dist/ at http://localhost:4173
 ```
 
 `dist/` is a static site. Host it anywhere that serves static files (GitHub Pages, Netlify, Cloudflare Pages, nginx…). The app uses client-side routing, so configure your host to serve `index.html` for unknown paths (an "SPA fallback").
+
+## Chrome extension
+
+Chessy also ships as a Chrome (Manifest V3) extension. It is the same app, opened in its own tab when you click the cheese icon in the toolbar.
+
+```bash
+npm install
+npm run build:extension    # outputs dist-extension/
+```
+
+Then in Chrome:
+
+1. Open `chrome://extensions`.
+2. Turn on **Developer mode** (top right).
+3. Click **Load unpacked** and choose the `dist-extension` folder.
+4. Pin Chessy from the puzzle-piece menu, then click the cheese icon to open it.
+
+Chessy opens automatically once after installation. After pulling new code, run `npm run build:extension` again and click the reload button on the Chessy card in `chrome://extensions`.
+
+**Fair play in the extension.** It is a launcher only:
+
+- it requests **no permissions**, no host permissions and no content scripts, so it cannot read, overlay or modify Chess.com, Lichess or any other website;
+- the background worker only opens Chessy's own page;
+- `tests/extension.test.ts` fails the build if the manifest ever gains page access.
+
+Everything else behaves exactly like the web app, including the fair-play gate and the "I'm about to play" lock.
+
+Notes:
+
+- Extension pages keep their own storage. Games you imported in the web app aren't visible in the extension, and vice versa. To move them, use **Settings → Export all data** in one and **Import data** in the other.
+- If you use a local model server for the AI coach, allow the extension's origin, e.g. `OLLAMA_ORIGINS=chrome-extension://*`.
+- To publish on the Chrome Web Store, zip the *contents* of `dist-extension/` (with `manifest.json` at the top level of the zip) and upload it in the developer dashboard.
 
 ## Features
 
@@ -123,6 +156,7 @@ npm run dev              # Vite dev server
 npm test                 # Vitest: unit, workflow and real-engine integration tests
 npm run typecheck        # tsc --noEmit
 npm run build            # type-check + production bundle
+npm run build:extension  # Chrome extension bundle in dist-extension/
 npm run verify:puzzles   # re-verify built-in puzzles with Stockfish (writes src/data/puzzles.json)
 npm run data:openings    # rebuild src/data/openings.json from lichess-org/chess-openings
 ```
