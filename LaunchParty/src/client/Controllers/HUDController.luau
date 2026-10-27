@@ -51,7 +51,7 @@ local function buildTopBar()
 	}, {
 		UI.corner(14),
 		UI.stroke(Color3.fromRGB(255, 205, 60), 2, 0.3),
-		UI.gradient(Color3.fromRGB(120, 60, 220), Color3.fromRGB(40, 90, 210), 0),
+		UI.gradient(Color3.fromRGB(34, 36, 52), Color3.fromRGB(22, 24, 36)),
 	})
 	UI.new("UISizeConstraint", { MinSize = Vector2.new(300, 66), MaxSize = Vector2.new(480, 66), Parent = bar })
 
@@ -169,7 +169,7 @@ local function buildScoreboard()
 		Parent = gui,
 	}, {
 		UI.corner(12),
-		UI.gradient(Color3.fromRGB(70, 40, 140), Color3.fromRGB(30, 30, 70)),
+		UI.gradient(Color3.fromRGB(34, 36, 52), Color3.fromRGB(22, 24, 36)),
 		UI.new("UIPadding", {
 			PaddingTop = UDim.new(0, 8),
 			PaddingBottom = UDim.new(0, 8),
@@ -240,7 +240,7 @@ local function buildProfile()
 		BackgroundColor3 = UI.Panel,
 		BackgroundTransparency = 0.15,
 		Parent = gui,
-	}, { UI.corner(12), UI.gradient(Color3.fromRGB(40, 120, 200), Color3.fromRGB(60, 40, 140), 0) })
+	}, { UI.corner(12), UI.gradient(Color3.fromRGB(34, 36, 52), Color3.fromRGB(22, 24, 36)) })
 	refs.LevelLabel = UI.label({
 		Position = UDim2.new(0, 10, 0, 6),
 		Size = UDim2.new(1, -20, 0, 22),
@@ -299,13 +299,13 @@ local function buildProfile()
 	})
 	UI.textStroke(2).Parent = refs.BonksLabel
 
-	local shop = UI.button("🛒 SHOP", Color3.fromRGB(255, 110, 180), Color3.fromRGB(255, 70, 110), {
+	local shop = UI.button("🛒 SHOP", Color3.fromRGB(255, 205, 80), Color3.fromRGB(230, 150, 40), {
 		LayoutOrder = 2,
 		Size = UDim2.new(1, 0, 0, 48),
 		Parent = side,
 	})
 	shop.Activated:Connect(ShopController.Toggle)
-	local help = UI.button("❓ HOW TO PLAY", Color3.fromRGB(90, 220, 255), Color3.fromRGB(60, 130, 255), {
+	local help = UI.button("❓ HOW TO PLAY", Color3.fromRGB(60, 64, 86), Color3.fromRGB(40, 43, 60), {
 		LayoutOrder = 3,
 		Size = UDim2.new(1, 0, 0, 40),
 		Parent = side,

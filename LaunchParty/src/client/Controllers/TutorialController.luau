@@ -170,8 +170,8 @@ showStep = function(index: number)
 		Parent = screen,
 	}, {
 		UI.corner(16),
-		UI.gradient(Color3.fromRGB(255, 130, 190), Color3.fromRGB(130, 90, 255), 0),
-		UI.stroke(Color3.fromRGB(255, 255, 255), 3),
+		UI.gradient(Color3.fromRGB(34, 36, 52), Color3.fromRGB(22, 24, 36)),
+		UI.stroke(Color3.fromRGB(255, 205, 80), 2),
 		UI.new("UISizeConstraint", { MaxSize = Vector2.new(520, 150) }),
 	})
 

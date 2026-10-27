@@ -25,7 +25,6 @@ export type Theme = {
 	Name: string,
 	Tiles: { Color3 },
 	Material: Enum.Material,
-	NeonRings: boolean?,
 	Dirt: Color3,
 	ClockTime: number,
 	Brightness: number,
@@ -41,8 +40,8 @@ export type Theme = {
 ArenaService.Themes = {
 	{
 		Name = "Sunny Meadow",
-		Tiles = { rgb(120, 225, 95), rgb(255, 225, 90), rgb(110, 205, 255), rgb(255, 140, 185) },
-		Material = Enum.Material.SmoothPlastic,
+		Tiles = { rgb(108, 190, 88), rgb(96, 174, 80) },
+		Material = Enum.Material.Grass,
 		Dirt = rgb(135, 92, 62),
 		ClockTime = 13.5,
 		Brightness = 2.6,
@@ -56,7 +55,7 @@ ArenaService.Themes = {
 	},
 	{
 		Name = "Candy Clouds",
-		Tiles = { rgb(255, 160, 210), rgb(160, 240, 210), rgb(200, 175, 255), rgb(255, 235, 150) },
+		Tiles = { rgb(226, 182, 200), rgb(208, 166, 186) },
 		Material = Enum.Material.SmoothPlastic,
 		Dirt = rgb(190, 120, 160),
 		ClockTime = 16.4,
@@ -71,7 +70,7 @@ ArenaService.Themes = {
 	},
 	{
 		Name = "Sunset Splash",
-		Tiles = { rgb(255, 150, 60), rgb(255, 95, 110), rgb(255, 205, 70), rgb(225, 80, 190) },
+		Tiles = { rgb(214, 150, 98), rgb(196, 134, 88) },
 		Material = Enum.Material.SmoothPlastic,
 		Dirt = rgb(120, 60, 70),
 		ClockTime = 17.7,
@@ -86,9 +85,8 @@ ArenaService.Themes = {
 	},
 	{
 		Name = "Neon Night",
-		Tiles = { rgb(0, 240, 255), rgb(255, 40, 200), rgb(140, 255, 60), rgb(255, 220, 40) },
+		Tiles = { rgb(70, 80, 120), rgb(60, 68, 104) },
 		Material = Enum.Material.SmoothPlastic,
-		NeonRings = true,
 		Dirt = rgb(40, 30, 70),
 		ClockTime = 0.3,
 		Brightness = 1.2,
@@ -102,7 +100,7 @@ ArenaService.Themes = {
 	},
 	{
 		Name = "Ocean Breeze",
-		Tiles = { rgb(40, 210, 200), rgb(250, 230, 170), rgb(90, 170, 255), rgb(255, 255, 255) },
+		Tiles = { rgb(222, 208, 168), rgb(206, 192, 154) },
 		Material = Enum.Material.SmoothPlastic,
 		Dirt = rgb(150, 120, 90),
 		ClockTime = 11.5,
@@ -242,16 +240,16 @@ local function setupSky()
 	clouds.Density = 0.7
 
 	local bloom = ensure("BloomEffect", Lighting, "LP_Bloom")
-	bloom.Intensity = 0.8
+	bloom.Intensity = 0.4
 	bloom.Size = 28
 	bloom.Threshold = 1.4
 
 	local color = ensure("ColorCorrectionEffect", Lighting, "LP_Color")
-	color.Saturation = 0.3
+	color.Saturation = 0.05
 	color.Contrast = 0.08
 
 	local rays = ensure("SunRaysEffect", Lighting, "LP_SunRays")
-	rays.Intensity = 0.1
+	rays.Intensity = 0.06
 	rays.Spread = 0.7
 
 	ensure("Atmosphere", Lighting)
@@ -306,8 +304,7 @@ end
 
 -- Scenery & lobby -----------------------------------------------------------------------------
 
-local FOLIAGE = { rgb(255, 150, 200), rgb(120, 220, 110), rgb(255, 190, 70), rgb(180, 140, 255), rgb(90, 220, 220) }
-local PARTY = { rgb(255, 90, 120), rgb(255, 200, 60), rgb(90, 220, 140), rgb(80, 170, 255), rgb(190, 110, 255), rgb(255, 140, 60) }
+local FOLIAGE = { rgb(96, 176, 82), rgb(82, 158, 74), rgb(112, 186, 92), rgb(214, 160, 84) }
 
 local function buildScenery()
 	local folder = Instance.new("Folder")
@@ -376,38 +373,6 @@ local function buildScenery()
 	folder.Parent = Workspace
 end
 
-local function balloon(folder: Folder, position: Vector3)
-	local color = PARTY[rng:NextInteger(1, #PARTY)]
-	local ball = makePart({
-		Name = "Balloon",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.one * 3,
-		CFrame = CFrame.new(position),
-		Color = color,
-		Material = Enum.Material.SmoothPlastic,
-		Reflectance = 0.15,
-		CanCollide = false,
-		CanQuery = false,
-		CastShadow = false,
-		Parent = folder,
-	})
-	local stringPart = makePart({
-		Name = "String",
-		Size = Vector3.new(0.08, 6, 0.08),
-		CFrame = CFrame.new(position - Vector3.new(0, 4.5, 0)),
-		Color = rgb(240, 240, 240),
-		CanCollide = false,
-		CanQuery = false,
-		CastShadow = false,
-		Parent = ball,
-	})
-	-- Gentle bobbing; the string moves with the balloon.
-	local bob = TweenInfo.new(rng:NextNumber(1.8, 2.8), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
-	local lift = Vector3.new(0, 1.2, 0)
-	TweenService:Create(ball, bob, { CFrame = ball.CFrame + lift }):Play()
-	TweenService:Create(stringPart, bob, { CFrame = stringPart.CFrame + lift }):Play()
-end
-
 local function buildLobby()
 	local folder = Instance.new("Folder")
 	folder.Name = "Lobby"
@@ -415,29 +380,20 @@ local function buildLobby()
 	local size = LOBBY.Size
 	local halfX, halfZ = size.X / 2, size.Z / 2
 
-	-- Rainbow striped floor.
-	local stripes = 8
-	local stripeWidth = size.X / stripes
-	local floorColors = {
-		rgb(255, 120, 150), rgb(255, 170, 90), rgb(255, 225, 100), rgb(130, 225, 120),
-		rgb(90, 210, 220), rgb(110, 160, 255), rgb(170, 130, 255), rgb(240, 130, 230),
-	}
-	for i = 1, stripes do
-		makePart({
-			Name = "Floor",
-			Size = Vector3.new(stripeWidth, size.Y, size.Z),
-			CFrame = CFrame.new(c.X - halfX + stripeWidth * (i - 0.5), c.Y - size.Y / 2, c.Z),
-			Color = floorColors[i],
-			Material = Enum.Material.SmoothPlastic,
-			Parent = folder,
-		})
-	end
+	makePart({
+		Name = "Floor",
+		Size = size,
+		CFrame = CFrame.new(c - Vector3.new(0, size.Y / 2, 0)),
+		Color = rgb(72, 76, 96),
+		Material = Enum.Material.Slate,
+		Parent = folder,
+	})
 	makePart({
 		Name = "Trim",
 		Size = Vector3.new(size.X, 0.3, 1),
 		CFrame = CFrame.new(c.X, c.Y + 0.05, c.Z - halfZ + 0.5),
-		Color = rgb(255, 255, 255),
-		Material = Enum.Material.Neon,
+		Color = rgb(255, 200, 70),
+		Material = Enum.Material.SmoothPlastic,
 		CanCollide = false,
 		Parent = folder,
 	})
@@ -451,39 +407,26 @@ local function buildLobby()
 		Parent = folder,
 	})
 
-	-- Corner pillars with glowing caps.
-	for index, corner in { Vector3.new(-1, 0, -1), Vector3.new(1, 0, -1), Vector3.new(-1, 0, 1), Vector3.new(1, 0, 1) } do
+	-- Corner pillars.
+	for _, corner in { Vector3.new(-1, 0, -1), Vector3.new(1, 0, -1), Vector3.new(-1, 0, 1), Vector3.new(1, 0, 1) } do
 		local base = c + Vector3.new(corner.X * (halfX - 2), 0, corner.Z * (halfZ - 2))
 		makePart({
 			Name = "Pillar",
 			Shape = Enum.PartType.Cylinder,
 			Size = Vector3.new(14, 3, 3),
 			CFrame = CFrame.new(base + Vector3.new(0, 7, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = rgb(250, 250, 255),
+			Color = rgb(225, 225, 232),
 			Material = Enum.Material.SmoothPlastic,
 			Parent = folder,
 		})
 		makePart({
 			Name = "PillarCap",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.one * 4,
-			CFrame = CFrame.new(base + Vector3.new(0, 15, 0)),
-			Color = PARTY[index],
-			Material = Enum.Material.Neon,
+			Size = Vector3.new(4, 1, 4),
+			CFrame = CFrame.new(base + Vector3.new(0, 14.5, 0)),
+			Color = rgb(255, 200, 70),
+			Material = Enum.Material.SmoothPlastic,
 			Parent = folder,
 		})
-	end
-
-	-- Balloon bunches along the back and sides.
-	for _, spot in {
-		Vector3.new(-halfX + 6, 9, halfZ - 6),
-		Vector3.new(halfX - 6, 9, halfZ - 6),
-		Vector3.new(-halfX + 4, 9, 0),
-		Vector3.new(halfX - 4, 9, 0),
-	} do
-		for _ = 1, 3 do
-			balloon(folder, c + spot + Vector3.new(rng:NextNumber(-2, 2), rng:NextNumber(0, 3), rng:NextNumber(-2, 2)))
-		end
 	end
 
 	-- Invisible walls so nobody can leave the lobby (or get launched out of it).
@@ -604,19 +547,12 @@ function ArenaService.Build(shapeName: string, theme: Theme?)
 			local x, z = gx * tileSize, gz * tileSize
 			if shape(x, z, ARENA.Radius) then
 				local dist = math.sqrt(x * x + z * z)
-				-- Concentric color rings: pretty, and they show which ring crumbles next.
+				-- Subtle alternating rings (two close shades) hint at which ring crumbles next.
 				local ring = math.floor(dist / tileSize + 0.5)
 				local color = palette[ring % #palette + 1]
 				local material = (theme :: Theme).Material
-				if (theme :: Theme).NeonRings then
-					if ring % 2 == 0 then
-						material = Enum.Material.Neon
-					else
-						color = color:Lerp(Color3.new(0, 0, 0), 0.75)
-					end
-				end
 				if (gx + gz) % 2 == 0 then
-					color = color:Lerp(Color3.new(1, 1, 1), 0.12)
+					color = color:Lerp(Color3.new(1, 1, 1), 0.04)
 				end
 
 				local model = Instance.new("Model")

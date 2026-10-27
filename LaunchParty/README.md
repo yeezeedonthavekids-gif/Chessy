@@ -24,8 +24,8 @@ ridiculous perk builds between rounds, and try not to be the one who falls into 
 - **Tutorial.** New players get a short hands-on tutorial (punch, charge, dash) that pays
   50 Bonks. You can replay it any time with the HOW TO PLAY button.
 - **Looks.** Each round has a color theme (Sunny Meadow, Candy Clouds, Sunset Splash, Neon
-  Night, Ocean Breeze) with its own lighting, 3D clouds and sun rays. Arena tiles are rainbow
-  rings, which also show which ring crumbles next.
+  Night, Ocean Breeze) with its own lighting, 3D clouds and sun rays. Arena tiles alternate
+  between two close shades in rings, which hints at which ring crumbles next.
 - **Animations.** Alternating jabs, a wind-up while you charge, a haymaker, a dash lean, a hit
   flinch and a victory pose. All of it is procedural (see below), so there are no animation
   assets to upload.

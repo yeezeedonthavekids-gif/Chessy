@@ -61,7 +61,7 @@ end
 local function card(order: number, accent: Color3): Frame
 	return UI.new("Frame", {
 		LayoutOrder = order,
-		BackgroundColor3 = Color3.fromRGB(35, 30, 60),
+		BackgroundColor3 = Color3.fromRGB(42, 44, 60),
 		Parent = content,
 	}, {
 		UI.corner(14),
@@ -142,7 +142,7 @@ local function cosmeticCards(list: { any }, kind: string)
 	local equipped = player:GetAttribute(if kind == "Skins" then "EquippedSkin" else "EquippedTrail")
 	local verb = if kind == "Skins" then "Skin" else "Trail"
 	for order, item in list do
-		local frame = card(order, if item.Pass or item.BundleOnly then GOLD[1] else Color3.fromRGB(150, 120, 255))
+		local frame = card(order, if item.Pass or item.BundleOnly then GOLD[1] else Color3.fromRGB(90, 94, 116))
 		if kind == "Skins" then
 			swatch(frame, item.Color, nil, if item.Color then nil else "🙂")
 		else
@@ -275,7 +275,7 @@ local function build()
 		Parent = gui,
 	}, {
 		UI.corner(18),
-		UI.gradient(Color3.fromRGB(80, 45, 160), Color3.fromRGB(30, 25, 70)),
+		UI.gradient(Color3.fromRGB(34, 36, 52), Color3.fromRGB(22, 24, 36)),
 		UI.stroke(Color3.fromRGB(255, 210, 80), 3),
 	})
 	local scale = UI.new("UIScale", { Parent = window })
@@ -332,10 +332,10 @@ local function build()
 		}),
 	})
 	local tabColors = {
-		Skins = { Color3.fromRGB(255, 120, 190), Color3.fromRGB(220, 60, 140) },
-		Trails = { Color3.fromRGB(90, 210, 255), Color3.fromRGB(50, 120, 230) },
-		Passes = { Color3.fromRGB(255, 205, 70), Color3.fromRGB(240, 140, 30) },
-		Bonks = { Color3.fromRGB(120, 230, 120), Color3.fromRGB(40, 170, 90) },
+		Skins = { Color3.fromRGB(60, 64, 86), Color3.fromRGB(44, 47, 64) },
+		Trails = { Color3.fromRGB(60, 64, 86), Color3.fromRGB(44, 47, 64) },
+		Passes = { Color3.fromRGB(60, 64, 86), Color3.fromRGB(44, 47, 64) },
+		Bonks = { Color3.fromRGB(60, 64, 86), Color3.fromRGB(44, 47, 64) },
 	}
 	for index, tab in TABS do
 		local button = UI.button(TAB_TITLES[tab], tabColors[tab][1], tabColors[tab][2], {
