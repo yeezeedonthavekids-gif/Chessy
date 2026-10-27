@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs>
+  <radialGradient id="bgBlue" cx="50%" cy="40%" r="65%">
+    <stop offset="0" stop-color="#1f7fa8"/><stop offset="0.6" stop-color="#0f3f66"/><stop offset="1" stop-color="#0a1f3a"/>
+  </radialGradient>
+  <radialGradient id="bgWarm" cx="50%" cy="40%" r="65%">
+    <stop offset="0" stop-color="#c2502a"/><stop offset="0.6" stop-color="#6e2318"/><stop offset="1" stop-color="#2a0c0e"/>
+  </radialGradient>
+  <radialGradient id="bgPurple" cx="50%" cy="40%" r="65%">
+    <stop offset="0" stop-color="#7a3fc4"/><stop offset="0.6" stop-color="#3a1a6e"/><stop offset="1" stop-color="#140829"/>
+  </radialGradient>
+  <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#f0a21e"/>
+  </linearGradient>
+  <radialGradient id="coin" cx="40%" cy="35%" r="70%">
+    <stop offset="0" stop-color="#fff2a8"/><stop offset="0.55" stop-color="#ffcc33"/><stop offset="1" stop-color="#e08c10"/>
+  </radialGradient>
+  <linearGradient id="sack" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#c48a52"/><stop offset="1" stop-color="#7a4a22"/>
+  </linearGradient>
+  <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#d7dee6"/><stop offset="0.5" stop-color="#9aa6b4"/><stop offset="1" stop-color="#5d6877"/>
+  </linearGradient>
+  <linearGradient id="molten" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ff8a3d"/><stop offset="1" stop-color="#d6361f"/>
+  </linearGradient>
+  <linearGradient id="sunset" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#ffaa28"/><stop offset="1" stop-color="#ff3c96"/>
+  </linearGradient>
+  <linearGradient id="galaxy" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#6a3cff"/><stop offset="0.5" stop-color="#b03cd6"/><stop offset="1" stop-color="#2b1470"/>
+  </linearGradient>
+  <linearGradient id="flame" x1="0" y1="1" x2="0" y2="0">
+    <stop offset="0" stop-color="#ff4a1c"/><stop offset="0.6" stop-color="#ffa21c"/><stop offset="1" stop-color="#fff07a"/>
+  </linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+    <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#000" flood-opacity="0.45"/>
+  </filter>
+</defs>
+<rect width="512" height="512" fill="url(#bgWarm)"/>
+<g filter="url(#shadow)">
+  <path d="M 256 40 C 300 90 316 120 300 150 C 296 128 284 118 276 112 C 282 140 270 160 256 170
+           C 242 160 230 140 236 112 C 228 118 216 128 212 150 C 196 120 212 90 256 40 Z" fill="url(#flame)"/>
+  <rect x="136" y="200" width="240" height="160" rx="16" fill="url(#molten)" stroke="#6e1a10" stroke-width="7"/>
+  <rect x="124" y="164" width="264" height="54" rx="14" fill="url(#molten)" stroke="#6e1a10" stroke-width="7"/>
+  <rect x="236" y="164" width="40" height="196" fill="url(#sunset)" stroke="#6e1a10" stroke-width="5"/>
+  <path d="M 256 166 C 210 120 172 140 196 168 Z" fill="url(#sunset)" stroke="#6e1a10" stroke-width="5"/>
+  <path d="M 256 166 C 302 120 340 140 316 168 Z" fill="url(#sunset)" stroke="#6e1a10" stroke-width="5"/>
+</g>
+<g filter="url(#shadow)">
+  
+<g transform="translate(110 326) rotate(-15)">
+  <ellipse cx="0" cy="5.3" rx="44" ry="44" fill="#b8720e"/>
+  <circle cx="0" cy="0" r="44" fill="url(#coin)" stroke="#b8720e" stroke-width="3.1"/>
+  <circle cx="0" cy="0" r="32.6" fill="none" stroke="#e8a21e" stroke-width="2.6"/>
+  <text x="0" y="15.8" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900"
+        font-size="46.2" fill="#b8720e">B</text>
+</g>
+<g transform="translate(404 330) rotate(14)">
+  <ellipse cx="0" cy="5.3" rx="44" ry="44" fill="#b8720e"/>
+  <circle cx="0" cy="0" r="44" fill="url(#coin)" stroke="#b8720e" stroke-width="3.1"/>
+  <circle cx="0" cy="0" r="32.6" fill="none" stroke="#e8a21e" stroke-width="2.6"/>
+  <text x="0" y="15.8" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900"
+        font-size="46.2" fill="#b8720e">B</text>
+</g>
+</g>
+<path d="M 410 82 Q 410 100 428 100 Q 410 100 410 118 Q 410 100 392 100 Q 410 100 410 82 Z" fill="#ffe0a0"/><path d="M 98 117 Q 98 130 111 130 Q 98 130 98 143 Q 98 130 85 130 Q 98 130 98 117 Z" fill="#ffe0a0"/>
+
+<g filter="url(#shadow)">
+  <rect x="106.0" y="378" width="300" height="74" rx="37" fill="url(#gold)" stroke="#7a4a0e" stroke-width="4"/>
+  <text x="256" y="433" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="46" fill="#0f2a45">STARTER</text>
+</g></svg>

@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs>
+  <radialGradient id="bgBlue" cx="50%" cy="40%" r="65%">
+    <stop offset="0" stop-color="#1f7fa8"/><stop offset="0.6" stop-color="#0f3f66"/><stop offset="1" stop-color="#0a1f3a"/>
+  </radialGradient>
+  <radialGradient id="bgWarm" cx="50%" cy="40%" r="65%">
+    <stop offset="0" stop-color="#c2502a"/><stop offset="0.6" stop-color="#6e2318"/><stop offset="1" stop-color="#2a0c0e"/>
+  </radialGradient>
+  <radialGradient id="bgPurple" cx="50%" cy="40%" r="65%">
+    <stop offset="0" stop-color="#7a3fc4"/><stop offset="0.6" stop-color="#3a1a6e"/><stop offset="1" stop-color="#140829"/>
+  </radialGradient>
+  <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#f0a21e"/>
+  </linearGradient>
+  <radialGradient id="coin" cx="40%" cy="35%" r="70%">
+    <stop offset="0" stop-color="#fff2a8"/><stop offset="0.55" stop-color="#ffcc33"/><stop offset="1" stop-color="#e08c10"/>
+  </radialGradient>
+  <linearGradient id="sack" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#c48a52"/><stop offset="1" stop-color="#7a4a22"/>
+  </linearGradient>
+  <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#d7dee6"/><stop offset="0.5" stop-color="#9aa6b4"/><stop offset="1" stop-color="#5d6877"/>
+  </linearGradient>
+  <linearGradient id="molten" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ff8a3d"/><stop offset="1" stop-color="#d6361f"/>
+  </linearGradient>
+  <linearGradient id="sunset" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#ffaa28"/><stop offset="1" stop-color="#ff3c96"/>
+  </linearGradient>
+  <linearGradient id="galaxy" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#6a3cff"/><stop offset="0.5" stop-color="#b03cd6"/><stop offset="1" stop-color="#2b1470"/>
+  </linearGradient>
+  <linearGradient id="flame" x1="0" y1="1" x2="0" y2="0">
+    <stop offset="0" stop-color="#ff4a1c"/><stop offset="0.6" stop-color="#ffa21c"/><stop offset="1" stop-color="#fff07a"/>
+  </linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+    <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#000" flood-opacity="0.45"/>
+  </filter>
+</defs>
+<rect width="512" height="512" fill="url(#bgBlue)"/>
+
+<g transform="translate(256 210) scale(1.05)" filter="url(#shadow)">
+  <path d="M -62 -48 C -125 10 -118 128 0 128 C 118 128 125 10 62 -48 Z" fill="url(#sack)" stroke="#4f2e12" stroke-width="6"/>
+  <path d="M -40 -50 L -66 -96 L -22 -74 L 0 -108 L 22 -74 L 66 -96 L 40 -50 Z" fill="url(#sack)" stroke="#4f2e12" stroke-width="6" stroke-linejoin="round"/>
+  <rect x="-58" y="-62" width="116" height="20" rx="10" fill="url(#gold)" stroke="#7a4a0e" stroke-width="4"/>
+  <circle cx="0" cy="44" r="40" fill="url(#gold)" stroke="#7a4a0e" stroke-width="5"/>
+  <text x="0" y="62" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="50" fill="#7a4a0e">B</text>
+</g>
+<g filter="url(#shadow)">
+  
+<g transform="translate(130 318) rotate(-15)">
+  <ellipse cx="0" cy="5.5" rx="46" ry="46" fill="#b8720e"/>
+  <circle cx="0" cy="0" r="46" fill="url(#coin)" stroke="#b8720e" stroke-width="3.2"/>
+  <circle cx="0" cy="0" r="34.0" fill="none" stroke="#e8a21e" stroke-width="2.8"/>
+  <text x="0" y="16.6" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900"
+        font-size="48.3" fill="#b8720e">B</text>
+</g>
+  
+<g transform="translate(384 322) rotate(12)">
+  <ellipse cx="0" cy="5.5" rx="46" ry="46" fill="#b8720e"/>
+  <circle cx="0" cy="0" r="46" fill="url(#coin)" stroke="#b8720e" stroke-width="3.2"/>
+  <circle cx="0" cy="0" r="34.0" fill="none" stroke="#e8a21e" stroke-width="2.8"/>
+  <text x="0" y="16.6" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900"
+        font-size="48.3" fill="#b8720e">B</text>
+</g>
+  
+<g transform="translate(352 352) rotate(-8)">
+  <ellipse cx="0" cy="4.3" rx="36" ry="36" fill="#b8720e"/>
+  <circle cx="0" cy="0" r="36" fill="url(#coin)" stroke="#b8720e" stroke-width="2.5"/>
+  <circle cx="0" cy="0" r="26.6" fill="none" stroke="#e8a21e" stroke-width="2.2"/>
+  <text x="0" y="13.0" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900"
+        font-size="37.8" fill="#b8720e">B</text>
+</g>
+</g>
+<path d="M 392 112 Q 392 130 410 130 Q 392 130 392 148 Q 392 130 374 130 Q 392 130 392 112 Z" fill="#ffffff"/><path d="M 120 137 Q 120 150 133 150 Q 120 150 120 163 Q 120 150 107 150 Q 120 150 120 137 Z" fill="#ffffff"/>
+
+<g filter="url(#shadow)">
+  <rect x="131.0" y="378" width="250" height="74" rx="37" fill="url(#gold)" stroke="#7a4a0e" stroke-width="4"/>
+  <text x="256" y="433" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="46" fill="#0f2a45">550</text>
+</g></svg>

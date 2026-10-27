@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs>
+  <radialGradient id="bgBlue" cx="50%" cy="40%" r="65%">
+    <stop offset="0" stop-color="#1f7fa8"/><stop offset="0.6" stop-color="#0f3f66"/><stop offset="1" stop-color="#0a1f3a"/>
+  </radialGradient>
+  <radialGradient id="bgWarm" cx="50%" cy="40%" r="65%">
+    <stop offset="0" stop-color="#c2502a"/><stop offset="0.6" stop-color="#6e2318"/><stop offset="1" stop-color="#2a0c0e"/>
+  </radialGradient>
+  <radialGradient id="bgPurple" cx="50%" cy="40%" r="65%">
+    <stop offset="0" stop-color="#7a3fc4"/><stop offset="0.6" stop-color="#3a1a6e"/><stop offset="1" stop-color="#140829"/>
+  </radialGradient>
+  <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#f0a21e"/>
+  </linearGradient>
+  <radialGradient id="coin" cx="40%" cy="35%" r="70%">
+    <stop offset="0" stop-color="#fff2a8"/><stop offset="0.55" stop-color="#ffcc33"/><stop offset="1" stop-color="#e08c10"/>
+  </radialGradient>
+  <linearGradient id="sack" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#c48a52"/><stop offset="1" stop-color="#7a4a22"/>
+  </linearGradient>
+  <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#d7dee6"/><stop offset="0.5" stop-color="#9aa6b4"/><stop offset="1" stop-color="#5d6877"/>
+  </linearGradient>
+  <linearGradient id="molten" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ff8a3d"/><stop offset="1" stop-color="#d6361f"/>
+  </linearGradient>
+  <linearGradient id="sunset" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#ffaa28"/><stop offset="1" stop-color="#ff3c96"/>
+  </linearGradient>
+  <linearGradient id="galaxy" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#6a3cff"/><stop offset="0.5" stop-color="#b03cd6"/><stop offset="1" stop-color="#2b1470"/>
+  </linearGradient>
+  <linearGradient id="flame" x1="0" y1="1" x2="0" y2="0">
+    <stop offset="0" stop-color="#ff4a1c"/><stop offset="0.6" stop-color="#ffa21c"/><stop offset="1" stop-color="#fff07a"/>
+  </linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+    <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#000" flood-opacity="0.45"/>
+  </filter>
+</defs>
+<rect width="512" height="512" fill="url(#bgBlue)"/>
+<g filter="url(#shadow)">
+  
+<g transform="translate(196 270) rotate(-12)">
+  <ellipse cx="0" cy="8.4" rx="70" ry="70" fill="#b8720e"/>
+  <circle cx="0" cy="0" r="70" fill="url(#coin)" stroke="#b8720e" stroke-width="4.9"/>
+  <circle cx="0" cy="0" r="51.8" fill="none" stroke="#e8a21e" stroke-width="4.2"/>
+  <text x="0" y="25.2" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900"
+        font-size="73.5" fill="#b8720e">B</text>
+</g>
+  
+<g transform="translate(318 262) rotate(10)">
+  <ellipse cx="0" cy="8.4" rx="70" ry="70" fill="#b8720e"/>
+  <circle cx="0" cy="0" r="70" fill="url(#coin)" stroke="#b8720e" stroke-width="4.9"/>
+  <circle cx="0" cy="0" r="51.8" fill="none" stroke="#e8a21e" stroke-width="4.2"/>
+  <text x="0" y="25.2" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900"
+        font-size="73.5" fill="#b8720e">B</text>
+</g>
+  
+<g transform="translate(256 196) rotate(0)">
+  <ellipse cx="0" cy="9.8" rx="82" ry="82" fill="#b8720e"/>
+  <circle cx="0" cy="0" r="82" fill="url(#coin)" stroke="#b8720e" stroke-width="5.7"/>
+  <circle cx="0" cy="0" r="60.7" fill="none" stroke="#e8a21e" stroke-width="4.9"/>
+  <text x="0" y="29.5" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900"
+        font-size="86.1" fill="#b8720e">B</text>
+</g>
+</g>
+<path d="M 380 132 Q 380 150 398 150 Q 380 150 380 168 Q 380 150 362 150 Q 380 150 380 132 Z" fill="#ffffff"/><path d="M 130 158 Q 130 170 142 170 Q 130 170 130 182 Q 130 170 118 170 Q 130 170 130 158 Z" fill="#ffffff"/>
+
+<g filter="url(#shadow)">
+  <rect x="131.0" y="378" width="250" height="74" rx="37" fill="url(#gold)" stroke="#7a4a0e" stroke-width="4"/>
+  <text x="256" y="433" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="46" fill="#0f2a45">100</text>
+</g></svg>
