@@ -52,7 +52,8 @@ export type Fighter = {
 	Level: number,
 	TitleName: string,
 	TrailTier: number,
-	AnimPlayer: ((string) -> ())?,
+	TrailOverride: ColorSequence?,
+	VIP: boolean,
 	Brain: any?,
 	Home: CFrame?,
 }
@@ -102,7 +103,8 @@ function FighterService.New(id: string, name: string, options: { Player: Player?
 		Level = 1,
 		TitleName = "Rookie",
 		TrailTier = 1,
-		AnimPlayer = nil,
+		TrailOverride = nil,
+		VIP = false,
 		Brain = nil,
 		Home = nil,
 	}
@@ -204,7 +206,7 @@ local function createTrail(fighter: Fighter, root: BasePart): Trail
 	trail.LightEmission = 0.6
 	trail.Transparency = NumberSequence.new(0.25, 1)
 	trail.WidthScale = NumberSequence.new(1, 0.2)
-	trail.Color = Cosmetics.TrailFor(fighter.TrailTier)
+	trail.Color = fighter.TrailOverride or Cosmetics.TrailFor(fighter.TrailTier)
 	trail.Enabled = false
 	trail.Parent = root
 	return trail
@@ -218,10 +220,13 @@ function FighterService.RefreshTag(fighter: Fighter)
 	local nameLabel = tag:FindFirstChild("NameLabel") :: TextLabel?
 	local heatLabel = tag:FindFirstChild("HeatLabel") :: TextLabel?
 	if nameLabel then
-		local prefix = if fighter.Crowned then "👑 " else ""
+		local prefix = if fighter.Crowned then "👑 " elseif fighter.VIP then "⭐ " else ""
 		local suffix = if fighter.IsDummy then "" elseif fighter.IsBot then "  · BOT" else "  · " .. fighter.TitleName
 		nameLabel.Text = prefix .. fighter.Name .. suffix
-		nameLabel.TextColor3 = if fighter.Crowned then Color3.fromRGB(255, 220, 90) else Color3.new(1, 1, 1)
+		nameLabel.TextColor3 = if fighter.Crowned
+			then Color3.fromRGB(255, 220, 90)
+			elseif fighter.VIP then Color3.fromRGB(255, 200, 60)
+			else Color3.new(1, 1, 1)
 	end
 	if heatLabel then
 		heatLabel.Text = string.format("%d%%", math.floor(fighter.Heat))
@@ -231,7 +236,7 @@ end
 
 function FighterService.RefreshCosmetics(fighter: Fighter)
 	if fighter.Trail then
-		fighter.Trail.Color = Cosmetics.TrailFor(fighter.TrailTier)
+		fighter.Trail.Color = fighter.TrailOverride or Cosmetics.TrailFor(fighter.TrailTier)
 	end
 	FighterService.RefreshTag(fighter)
 end
@@ -379,6 +384,9 @@ function FighterService.SetFrozen(fighter: Fighter, frozen: boolean)
 end
 
 function FighterService.SetCharging(fighter: Fighter, charging: boolean)
+	if fighter.Model then
+		fighter.Model:SetAttribute("Charging", charging)
+	end
 	if charging then
 		fighter.ChargeStart = os.clock()
 		if fighter.Model and not fighter.Highlight then

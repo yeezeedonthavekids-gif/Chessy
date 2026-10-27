@@ -88,22 +88,30 @@ Config.Events = {
 }
 
 Config.Anims = {
-	-- Roblox-owned default R15 animations; usable in any experience.
-	Punch = "rbxassetid://522635514",
-	Charged = "rbxassetid://522638767",
+	-- Roblox's default R15 idle/walk, used by bots. Punches are procedural (see AnimationController).
 	Idle = "rbxassetid://507766388",
 	Walk = "rbxassetid://507777826",
 }
 
 Config.Sounds = {
-	-- Built-in engine sounds. Swap for your own uploaded audio any time.
-	Swing = "rbxasset://sounds/swordslash.wav",
-	ChargedSwing = "rbxasset://sounds/swordlunge.wav",
+	-- Leave a sound as "" to mute it. To use your own, grab a sound from the Toolbox
+	-- (or upload one) and paste "rbxassetid://<id>" here.
+	Swing = "",
+	ChargedSwing = "",
 	Hit = "rbxasset://sounds/collide.wav",
 	KO = "rbxasset://sounds/Launching rocket.wav",
 	Dash = "rbxasset://sounds/action_jump.mp3",
 	Pick = "rbxasset://sounds/electronicpingshort.wav",
 	Boom = "rbxasset://sounds/collide.wav",
+	Coins = "rbxasset://sounds/electronicpingshort.wav",
+}
+
+Config.Economy = {
+	MatchBonks = 10,
+	BonksPerPoint = 4,
+	BonksPerKO = 3,
+	WinBonks = 25,
+	TutorialBonks = 50,
 }
 
 return Config

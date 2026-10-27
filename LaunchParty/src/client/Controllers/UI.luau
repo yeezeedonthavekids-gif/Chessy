@@ -43,6 +43,52 @@ function UI.stroke(color: Color3?, thickness: number?, transparency: number?): U
 	})
 end
 
+function UI.gradient(top: Color3, bottom: Color3, rotation: number?): UIGradient
+	return UI.new("UIGradient", {
+		Color = ColorSequence.new(top, bottom),
+		Rotation = rotation or 90,
+	})
+end
+
+-- Chunky rounded button with a gradient background.
+-- (The gradient lives on a child frame so it doesn't tint the text.) Returns button, label.
+function UI.button(text: string, top: Color3, bottom: Color3, props: { [string]: any }): (TextButton, TextLabel)
+	local defaults = {
+		Text = "",
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+	}
+	for key, value in props do
+		defaults[key] = value
+	end
+	local button = UI.new("TextButton", defaults)
+	UI.new("Frame", {
+		Name = "Background",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		ZIndex = button.ZIndex,
+		Parent = button,
+	}, {
+		UI.corner(12),
+		UI.gradient(top, bottom),
+		UI.new("UIStroke", { Color = Color3.new(0, 0, 0), Thickness = 2, Transparency = 0.4, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }),
+	})
+	local label = UI.label({
+		Name = "Label",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1, -12, 1, -8),
+		Text = text,
+		ZIndex = button.ZIndex + 1,
+		Parent = button,
+	})
+	UI.textStroke(1.5).Parent = label
+	button.MouseEnter:Connect(function()
+		UI.pop(button, 1.08, 0.15)
+	end)
+	return button, label
+end
+
 function UI.textStroke(thickness: number?): UIStroke
 	return UI.new("UIStroke", {
 		Color = Color3.new(0, 0, 0),

@@ -19,6 +19,16 @@ ridiculous perk builds between rounds, and try not to be the one who falls into 
 - **Reasons to come back.** Saved XP and levels unlock new perks for your draft pool, plus
   titles (Rookie → Living Legend) and trail colours. Your first win each day earns double XP.
 - **Never empty.** Bots fill matches up to 4 fighters, and practice dummies wait in the lobby.
+  Bots dash too: they dash in to bump you, sidestep your charged punches and air-dash back
+  when you launch them.
+- **Tutorial.** New players get a short hands-on tutorial (punch, charge, dash) that pays
+  50 Bonks. You can replay it any time with the HOW TO PLAY button.
+- **Looks.** Each round has a color theme (Sunny Meadow, Candy Clouds, Sunset Splash, Neon
+  Night, Ocean Breeze) with its own lighting, 3D clouds and sun rays. Arena tiles are rainbow
+  rings, which also show which ring crumbles next.
+- **Animations.** Alternating jabs, a wind-up while you charge, a haymaker, a dash lean, a hit
+  flinch and a victory pose. All of it is procedural (see below), so there are no animation
+  assets to upload.
 
 ## Core loop
 
@@ -56,6 +66,42 @@ To make progress save in Studio, publish the place and enable
 *Game Settings → Security → Enable Studio Access to API Services*. Without that the game
 still runs and tells you that progress isn't being saved.
 
+## Shop, game passes and Robux
+
+Players earn **Bonks** from matches (more for points, KOs and wins; double with VIP) and spend
+them on **skins** and **trails** in the shop (🛒 button). Robux items are set up in one file,
+`src/shared/Shop.luau`:
+
+| Type | Items |
+|---|---|
+| Game passes | VIP (2x Bonks, gold name, VIP skin), 2x XP, Card Shark (reroll perk cards), Rainbow Trail |
+| Developer products | 4 Bonks packs |
+| Bundles (one-time products) | Starter Bundle, Legend Bundle (has exclusive skin + trail) |
+
+To turn them on:
+1. Publish the game, then go to **create.roblox.com → your game → Monetization**.
+2. Create each pass and developer product and set its price.
+3. Paste each ID into `Shop.luau` where it says `Id = 0`, and set `Robux =` to the price you
+   chose (that's only used for the label in the shop).
+
+Anything left at `Id = 0` shows as "Coming soon". Purchases are handled safely: every receipt
+is recorded, saved, and only then confirmed to Roblox, so nobody gets charged without getting
+their item (or gets it twice).
+
+## Animations
+
+Punch, wind-up, haymaker, dash, flinch and victory poses are made by rotating the R15 joints
+(`Motor6D.C0`) in code (`AnimationController`). They layer on top of Roblox's normal walk and
+idle animations, and every client animates every fighter, so everyone sees the same thing.
+This needs R15 avatars (the default). If you make your own animations in the Animation Editor
+later, you can swap them in.
+
+## Sounds and sky
+
+- Swing sounds are muted by default. Paste any sound ID into `Config.Sounds` to add your own.
+- The sky uses Roblox's built-in 3D clouds and per-round lighting. To use a custom skybox,
+  insert a Sky from the Toolbox into `Lighting`. The game keeps it instead of making its own.
+
 ## Architecture
 
 All gameplay is **server-authoritative**. Clients only send *requests* ("I started charging",
@@ -72,6 +118,7 @@ src/shared/                 ReplicatedStorage.Shared
   Draft.luau                weighted rarity card rolls      (unit tested)
   Progression.luau          levels, titles, match XP        (unit tested)
   Movement.luau             knockback/tumble + dash physics (client & server)
+  Shop.luau                 shop catalog + Robux IDs (edit this to set up monetization)
   Net.luau                  remote registry
   Cosmetics.luau            heat colours, trails, rarity colours
 src/server/                 ServerScriptService.Server
@@ -83,12 +130,16 @@ src/server/                 ServerScriptService.Server
   Services/EventService     round events
   Services/DraftService     per-round perk draft
   Services/DataService      DataStore profiles with retries, autosave, BindToClose
+  Services/ShopService      Bonks shop, skins/trails, game passes, receipt processing
   Services/RoundService     match state machine, KOs, placements, crown, rewards
 src/client/                 StarterPlayerScripts.Client
   Controllers/Input         input, aim assist, client-side prediction
   Controllers/Effects       knockback, hit FX, heat popups, KO blasts, camera shake
   Controllers/HUD           status, heat meter, scores, kill feed, results
-  Controllers/Draft         perk card picker
+  Controllers/Draft         perk card picker (+ reroll for Card Shark owners)
+  Controllers/Animation     procedural punch/charge/dash/flinch/victory animations
+  Controllers/Shop          shop window and purchase toasts
+  Controllers/Tutorial      first-time tutorial
 ```
 
 ## Testing
@@ -105,12 +156,12 @@ src/client/                 StarterPlayerScripts.Client
 - Matches too long? Lower `Match.RoundsPerMatch` or `Match.SuddenDeathAt`.
 - Launches too weak or strong? `Combat.HeatScale` sets how much heat matters. `JabKnock` and
   `ChargeKnockMult` set raw power.
-- Sounds use built-in engine audio. Swap `Config.Sounds` for your own uploads.
+- Bonks payouts are in `Config.Economy`. Shop prices are in `Shop.luau`.
 
 ## Roadmap (next stages)
 
-1. Custom punch animations + uploaded SFX for extra crunch.
+1. Uploaded SFX (punch thwacks, whooshes) for extra crunch.
 2. More events (Bouncy Castle floor, Lights Out, Giant Mode) and arena shapes.
 3. Perk synergies ("set bonuses") and a few cursed perks with big upsides.
-4. Cosmetic shop (trails, KO effects) using in-game currency; daily challenges.
+4. Purchasable KO effects and emotes; daily challenges.
 5. Ranked queue / private servers via TeleportService.

@@ -68,62 +68,62 @@ end
 
 Perks.List = {
 	-- Common
-	perk("rocket_fist", "Rocket Fist", "Common", 5, 1, "+15% knockback dealt.", function(s)
+	perk("rocket_fist", "Rocket Fist", "Common", 5, 1, "Your punches send people a bit further.", function(s)
 		s.KnockDealt += 0.15
 	end),
-	perk("heavyweight", "Heavyweight", "Common", 4, 1, "-12% knockback taken, slightly slower.", function(s)
+	perk("heavyweight", "Heavyweight", "Common", 4, 1, "Harder to push around. You walk a little slower though.", function(s)
 		s.KnockTaken -= 0.12
 		s.WalkSpeed -= 1
 	end),
-	perk("turbo_sneakers", "Turbo Sneakers", "Common", 4, 1, "+2.5 walk speed.", function(s)
+	perk("turbo_sneakers", "Turbo Sneakers", "Common", 4, 1, "Run faster. Simple as that.", function(s)
 		s.WalkSpeed += 2.5
 	end),
-	perk("quick_jab", "Quick Jab", "Common", 3, 1, "Punch cooldown -15%.", function(s)
+	perk("quick_jab", "Quick Jab", "Common", 3, 1, "Punch more often.", function(s)
 		s.PunchCooldownMult -= 0.15
 	end),
-	perk("spring_legs", "Spring Legs", "Common", 3, 1, "+10 jump power.", function(s)
+	perk("spring_legs", "Spring Legs", "Common", 3, 1, "Jump higher. Great for hopping the Sweeper.", function(s)
 		s.JumpPower += 10
 	end),
-	perk("second_gear", "Second Gear", "Common", 3, 1, "Dash cooldown -20%.", function(s)
+	perk("second_gear", "Second Gear", "Common", 3, 1, "Your dash comes back quicker.", function(s)
 		s.DashCooldownMult -= 0.2
 	end),
-	perk("thick_skin", "Thick Skin", "Common", 4, 1, "Take 15% less heat.", function(s)
+	perk("thick_skin", "Thick Skin", "Common", 4, 1, "Hits heat you up a bit less.", function(s)
 		s.HeatTaken -= 0.15
 	end),
-	perk("spicy_knuckles", "Spicy Knuckles", "Common", 4, 1, "Deal 20% more heat.", function(s)
+	perk("spicy_knuckles", "Spicy Knuckles", "Common", 4, 1, "Your hits heat people up faster.", function(s)
 		s.HeatDealt += 0.2
 	end),
 	-- Rare
-	perk("double_dash", "Double Dash", "Rare", 2, 1, "+1 dash charge. Recover like a pro.", function(s)
+	perk("double_dash", "Double Dash", "Rare", 2, 1, "Get an extra dash. Super handy when you get launched.", function(s)
 		s.DashCharges += 1
 	end),
-	perk("vampire_fist", "Vampire Fist", "Rare", 3, 1, "Every hit cools your own heat by 4%.", function(s)
+	perk("vampire_fist", "Vampire Fist", "Rare", 3, 1, "Landing a hit cools you down a little.", function(s)
 		s.LifeSteal += 4
 	end),
-	perk("spiked_armor", "Spiked Armor", "Rare", 2, 2, "Attackers take 35% of the heat they deal you.", function(s)
+	perk("spiked_armor", "Spiked Armor", "Rare", 2, 2, "Whoever hits you gets some of that heat back.", function(s)
 		s.Thorns += 0.35
 	end),
-	perk("bumper_car", "Bumper Car", "Rare", 2, 2, "Dash bumps hit twice as hard.", function(s)
+	perk("bumper_car", "Bumper Car", "Rare", 2, 2, "Dashing into people hits way harder.", function(s)
 		s.BumpMult += 1
 	end),
-	perk("overcharger", "Overcharger", "Rare", 2, 4, "Charge punches 40% faster.", function(s)
+	perk("overcharger", "Overcharger", "Rare", 2, 4, "Your charged punch winds up faster.", function(s)
 		s.ChargeSpeed += 0.4
 	end),
 	-- Legendary
-	perk("second_wind", "Second Wind", "Legendary", 2, 1, "Once per round, the void spits you back out.", function(s)
+	perk("second_wind", "Second Wind", "Legendary", 2, 1, "Fall off once and you get thrown back on. Once a round.", function(s)
 		s.ExtraLives += 1
 	end),
-	perk("glass_cannon", "Glass Cannon", "Legendary", 2, 3, "+50% knockback dealt, +35% knockback taken.", function(s)
+	perk("glass_cannon", "Glass Cannon", "Legendary", 2, 3, "You hit like a truck. You also fly like a paper plane.", function(s)
 		s.KnockDealt += 0.5
 		s.KnockTaken += 0.35
 	end),
-	perk("titan", "Titan", "Legendary", 2, 5, "Grow 20% bigger. Harder to move, hits harder, a bit slower.", function(s)
+	perk("titan", "Titan", "Legendary", 2, 5, "Get bigger. Bigger hits, harder to knock around, a bit slow.", function(s)
 		s.Scale += 0.2
 		s.KnockTaken -= 0.2
 		s.KnockDealt += 0.1
 		s.WalkSpeed -= 1.5
 	end),
-	perk("shockwave_fist", "Shockwave Fist", "Legendary", 1, 7, "Charged punches blast EVERYONE around you.", function(s)
+	perk("shockwave_fist", "Shockwave Fist", "Legendary", 1, 7, "Your charged punch also smacks everyone near you.", function(s)
 		s.Shockwave += 1
 	end),
 }

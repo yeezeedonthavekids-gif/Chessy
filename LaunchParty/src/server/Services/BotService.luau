@@ -155,19 +155,6 @@ local function setupAnimations(fighter: Fighter)
 		tracks.Walk.Looped = true
 		tracks.Walk.Priority = Enum.AnimationPriority.Movement
 	end
-	for _, key in { "Punch", "Charged" } do
-		if tracks[key] then
-			tracks[key].Priority = Enum.AnimationPriority.Action
-		end
-	end
-
-	fighter.AnimPlayer = function(kind: string)
-		local track = tracks[kind]
-		if track then
-			track:Play(0.05)
-			track:AdjustSpeed(1.6)
-		end
-	end
 	fighter.Brain = fighter.Brain or {}
 	fighter.Brain.Tracks = tracks
 end
@@ -302,6 +289,24 @@ local function thinkDummy(fighter: Fighter, now: number)
 	end
 end
 
+local function dashReady(fighter: Fighter, now: number): boolean
+	for _, readyAt in fighter.DashReady do
+		if readyAt <= now then
+			return true
+		end
+	end
+	return false
+end
+
+-- Dash only if there's floor where we'd land (bots shouldn't dash themselves off the map).
+local function safeDash(fighter: Fighter, direction: Vector3): boolean
+	local root = fighter.Root :: BasePart
+	if not ArenaService.IsOverArena(root.Position + direction * 14) then
+		return false
+	end
+	return CombatService.TryDash(fighter, direction)
+end
+
 local function think(fighter: Fighter, now: number)
 	local humanoid = fighter.Humanoid :: Humanoid
 	local root = fighter.Root :: BasePart
@@ -311,10 +316,11 @@ local function think(fighter: Fighter, now: number)
 	local position = root.Position
 	local toCenter = safeUnit(flat(center - position), Vector3.new(0, 0, 1))
 	local overArena = ArenaService.IsOverArena(position)
+	local canDash = dashReady(fighter, now)
 
 	-- Recovery: launched off the edge? Air-dash back toward the middle.
 	if not overArena and position.Y < center.Y + 1 then
-		if rng:NextNumber() < 0.25 + skill * 0.6 then
+		if canDash and rng:NextNumber() < 0.45 + skill * 0.5 then
 			CombatService.TryDash(fighter, toCenter)
 		end
 		humanoid:Move(toCenter, false)
@@ -343,8 +349,28 @@ local function think(fighter: Fighter, now: number)
 
 	-- Edge avoidance: never walk somewhere with no floor.
 	local moveDir = aim
-	if not ArenaService.IsOverArena(position + moveDir * 5) then
+	local nearEdge = not ArenaService.IsOverArena(position + moveDir * 5)
+	if nearEdge then
 		moveDir = toCenter
+	end
+
+	if canDash and now >= (brain.NextDash or 0) then
+		local dashed = false
+		if target.ChargeStart and distance < 10 and rng:NextNumber() < 0.15 + skill * 0.35 then
+			-- Someone's winding up a big punch nearby: sidestep it.
+			local side = Vector3.new(-aim.Z, 0, aim.X) * (if rng:NextNumber() < 0.5 then 1 else -1)
+			dashed = safeDash(fighter, side) or safeDash(fighter, -side)
+		elseif nearEdge and distance < 8 and rng:NextNumber() < 0.2 + skill * 0.3 then
+			-- Cornered at the edge: dash back toward the middle.
+			dashed = safeDash(fighter, toCenter)
+		elseif distance > 7 and distance < 20 and rng:NextNumber() < 0.12 + skill * 0.18 then
+			-- Close the gap and bump them.
+			dashed = safeDash(fighter, aim)
+		end
+		if dashed then
+			brain.NextDash = now + rng:NextNumber(0.6, 1.4)
+			return
+		end
 	end
 
 	if brain.ChargeRelease then
@@ -374,11 +400,6 @@ local function think(fighter: Fighter, now: number)
 		end
 	else
 		humanoid:Move(moveDir, false)
-		if distance > 9 and distance < 18 and rng:NextNumber() < 0.03 + skill * 0.04 then
-			if ArenaService.IsOverArena(position + aim * 16) then
-				CombatService.TryDash(fighter, aim)
-			end
-		end
 	end
 
 	if rng:NextNumber() < 0.012 then

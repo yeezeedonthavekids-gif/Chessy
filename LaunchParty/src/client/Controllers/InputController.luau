@@ -12,6 +12,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local Movement = require(Shared:WaitForChild("Movement"))
 local Net = require(Shared:WaitForChild("Net"))
 
+local AnimationController = require(script.Parent.AnimationController)
 local EffectsController = require(script.Parent.EffectsController)
 local State = require(script.Parent.State)
 
@@ -22,8 +23,6 @@ local player = Players.LocalPlayer
 local chargeRemote = Net.Event("ChargeStart")
 local punchRemote = Net.Event("Punch")
 local dashRemote = Net.Event("Dash")
-
-local tracks: { [string]: AnimationTrack } = {}
 
 local function getCharacter(): (Model?, Humanoid?, BasePart?)
 	local character = player.Character
@@ -36,37 +35,6 @@ local function getCharacter(): (Model?, Humanoid?, BasePart?)
 		return nil, nil, nil
 	end
 	return character, humanoid, root
-end
-
-local function loadTracks(character: Model)
-	table.clear(tracks)
-	local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
-	if not humanoid then
-		return
-	end
-	local animator = humanoid:WaitForChild("Animator", 10) :: Animator?
-	if not animator then
-		return
-	end
-	for _, key in { "Punch", "Charged" } do
-		local animation = Instance.new("Animation")
-		animation.AnimationId = Config.Anims[key]
-		local ok, track = pcall(function()
-			return animator:LoadAnimation(animation)
-		end)
-		if ok and track then
-			track.Priority = Enum.AnimationPriority.Action
-			tracks[key] = track
-		end
-	end
-end
-
-local function playTrack(key: string)
-	local track = tracks[key]
-	if track then
-		track:Play(0.05)
-		track:AdjustSpeed(1.6)
-	end
 end
 
 local function flatten(vector: Vector3, fallback: Vector3): Vector3
@@ -143,7 +111,7 @@ function InputController.ReleasePunch()
 		root.CFrame = CFrame.lookAt(root.Position, root.Position + aim)
 	end
 	State.LastPunch = os.clock()
-	playTrack(if charged then "Charged" else "Punch")
+	AnimationController.Play(player.Character, if charged then "Haymaker" else "Jab")
 	EffectsController.PlaySound(if charged then Config.Sounds.ChargedSwing else Config.Sounds.Swing, nil, 0.45)
 	punchRemote:FireServer(aim)
 end
@@ -183,19 +151,17 @@ function InputController.Dash()
 	State.Charging = false
 	Movement.Dash(humanoid, root, direction, C)
 	dashRemote:FireServer(direction)
+	AnimationController.Play(player.Character, "Dash")
+	State.Dashed:Fire()
 	EffectsController.PlaySound(Config.Sounds.Dash, nil, 0.5, 1.3)
 	EffectsController.FovKick(5)
 end
 
 function InputController.Start()
-	player.CharacterAdded:Connect(function(character)
+	player.CharacterAdded:Connect(function()
 		State.Charging = false
 		table.clear(State.DashReady)
-		loadTracks(character)
 	end)
-	if player.Character then
-		task.spawn(loadTracks, player.Character)
-	end
 
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then

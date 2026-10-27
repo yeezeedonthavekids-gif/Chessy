@@ -21,7 +21,15 @@ local feedRemote = Net.Event("KillFeed")
 
 local rng = Random.new()
 
-type Pending = { Fighter: Fighter, Cards: { Perks.PerkDef }, Picked: boolean }
+type Pending = {
+	Fighter: Fighter,
+	Cards: { Perks.PerkDef },
+	Picked: boolean,
+	Pool: { Perks.PerkDef },
+	Luck: number,
+	CanReroll: boolean,
+	EndsAt: number,
+}
 local pendingByPlayer: { [Player]: Pending } = {}
 
 local function serialize(fighter: Fighter, cards: { Perks.PerkDef })
@@ -50,7 +58,7 @@ local function commit(pending: Pending, index: number)
 	pending.Picked = true
 	FighterService.AddPerk(pending.Fighter, def.Id)
 	if def.Rarity == "Legendary" then
-		feedRemote:FireAllClients({ Text = string.format("✨ %s drafted %s!", pending.Fighter.Name, def.Name) })
+		feedRemote:FireAllClients({ Text = string.format("✨ %s got %s!", pending.Fighter.Name, def.Name) })
 	end
 end
 
@@ -62,13 +70,23 @@ function DraftService.Run(participants: { Fighter }, luckBy: { [Fighter]: number
 	for _, fighter in participants do
 		local level = if fighter.Player then DataService.GetLevel(fighter.Player) else 99
 		local pool = Perks.Pool(level)
-		local cards = Draft.Roll(pool, fighter.Perks, 3, luckBy[fighter] or 0.5, rng) :: { any }
+		local luck = luckBy[fighter] or 0.5
+		local cards = Draft.Roll(pool, fighter.Perks, 3, luck, rng) :: { any }
 		if #cards > 0 then
-			local pending: Pending = { Fighter = fighter, Cards = cards, Picked = false }
+			local canReroll = fighter.Player ~= nil and fighter.Player:GetAttribute("Pass_Reroll") == true
+			local pending: Pending = {
+				Fighter = fighter,
+				Cards = cards,
+				Picked = false,
+				Pool = pool,
+				Luck = luck,
+				CanReroll = canReroll,
+				EndsAt = endsAt,
+			}
 			table.insert(all, pending)
 			if fighter.Player and fighter.Player.Parent then
 				pendingByPlayer[fighter.Player] = pending
-				offerRemote:FireClient(fighter.Player, serialize(fighter, cards), endsAt)
+				offerRemote:FireClient(fighter.Player, serialize(fighter, cards), endsAt, canReroll)
 			else
 				task.delay(rng:NextNumber(1, 3), function()
 					commit(pending, rng:NextInteger(1, #pending.Cards))
@@ -112,6 +130,19 @@ function DraftService.Init()
 			return
 		end
 		commit(pending, index)
+	end)
+
+	Net.Event("DraftReroll").OnServerEvent:Connect(function(player)
+		local pending = pendingByPlayer[player]
+		if not pending or pending.Picked or not pending.CanReroll then
+			return
+		end
+		pending.CanReroll = false
+		local cards = Draft.Roll(pending.Pool, pending.Fighter.Perks, 3, pending.Luck, rng) :: { any }
+		if #cards > 0 then
+			pending.Cards = cards
+		end
+		offerRemote:FireClient(player, serialize(pending.Fighter, pending.Cards), pending.EndsAt, false)
 	end)
 end
 

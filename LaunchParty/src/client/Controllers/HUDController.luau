@@ -12,7 +12,9 @@ local Config = require(Shared:WaitForChild("Config"))
 local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
 local Net = require(Shared:WaitForChild("Net"))
 
+local ShopController = require(script.Parent.ShopController)
 local State = require(script.Parent.State)
+local TutorialController = require(script.Parent.TutorialController)
 local UI = require(script.Parent.UI)
 
 local HUDController = {}
@@ -27,11 +29,11 @@ local announceToken = 0
 
 local STATE_TITLES = {
 	Waiting = "WAITING FOR PLAYERS",
-	Intermission = "MATCH STARTING",
+	Intermission = "STARTING SOON",
 	Countdown = "GET READY",
 	Live = "FIGHT!",
 	RoundEnd = "ROUND OVER",
-	Draft = "DRAFT PHASE",
+	Draft = "PICK A PERK",
 	MatchEnd = "MATCH OVER",
 }
 
@@ -46,7 +48,11 @@ local function buildTopBar()
 		BackgroundColor3 = UI.Panel,
 		BackgroundTransparency = 0.2,
 		Parent = gui,
-	}, { UI.corner(14), UI.stroke(Color3.fromRGB(255, 205, 60), 2, 0.3) })
+	}, {
+		UI.corner(14),
+		UI.stroke(Color3.fromRGB(255, 205, 60), 2, 0.3),
+		UI.gradient(Color3.fromRGB(120, 60, 220), Color3.fromRGB(40, 90, 210), 0),
+	})
 	UI.new("UISizeConstraint", { MinSize = Vector2.new(300, 66), MaxSize = Vector2.new(480, 66), Parent = bar })
 
 	refs.StateLabel = UI.label({
@@ -159,10 +165,11 @@ local function buildScoreboard()
 		Size = UDim2.new(0, 230, 0, 30),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = UI.Panel,
-		BackgroundTransparency = 0.3,
+		BackgroundTransparency = 0.15,
 		Parent = gui,
 	}, {
 		UI.corner(12),
+		UI.gradient(Color3.fromRGB(70, 40, 140), Color3.fromRGB(30, 30, 70)),
 		UI.new("UIPadding", {
 			PaddingTop = UDim.new(0, 8),
 			PaddingBottom = UDim.new(0, 8),
@@ -231,9 +238,9 @@ local function buildProfile()
 		Position = UDim2.new(0, 12, 1, -12),
 		Size = UDim2.new(0, 220, 0, 52),
 		BackgroundColor3 = UI.Panel,
-		BackgroundTransparency = 0.3,
+		BackgroundTransparency = 0.15,
 		Parent = gui,
-	}, { UI.corner(12) })
+	}, { UI.corner(12), UI.gradient(Color3.fromRGB(40, 120, 200), Color3.fromRGB(60, 40, 140), 0) })
 	refs.LevelLabel = UI.label({
 		Position = UDim2.new(0, 10, 0, 6),
 		Size = UDim2.new(1, -20, 0, 22),
@@ -263,9 +270,49 @@ local function buildProfile()
 		TextColor3 = Color3.fromRGB(200, 205, 220),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTransparency = 0.2,
-		Text = if touch then "PUNCH: tap/hold · DASH: button" else "CLICK punch · HOLD charge · Q/SHIFT dash",
+		Text = if touch then "Tap PUNCH, hold it for a big one. DASH to dash." else "Click to punch, hold for a big one, Q or Shift to dash",
 		Parent = gui,
 	})
+
+	-- Bonks counter + shop/help buttons on the left.
+	local side = UI.new("Frame", {
+		Name = "SideButtons",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 12, 0.5, 20),
+		Size = UDim2.new(0, 150, 0, 160),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	}, {
+		UI.new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }),
+	})
+	local bonks = UI.new("Frame", {
+		LayoutOrder = 1,
+		Size = UDim2.new(1, 0, 0, 40),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Parent = side,
+	}, { UI.corner(20), UI.gradient(Color3.fromRGB(255, 215, 70), Color3.fromRGB(255, 150, 30)) })
+	refs.BonksLabel = UI.label({
+		Size = UDim2.new(1, -16, 1, -8),
+		Position = UDim2.new(0, 8, 0, 4),
+		Text = "💰 0",
+		Parent = bonks,
+	})
+	UI.textStroke(2).Parent = refs.BonksLabel
+
+	local shop = UI.button("🛒 SHOP", Color3.fromRGB(255, 110, 180), Color3.fromRGB(255, 70, 110), {
+		LayoutOrder = 2,
+		Size = UDim2.new(1, 0, 0, 48),
+		Parent = side,
+	})
+	shop.Activated:Connect(ShopController.Toggle)
+	local help = UI.button("❓ HOW TO PLAY", Color3.fromRGB(90, 220, 255), Color3.fromRGB(60, 130, 255), {
+		LayoutOrder = 3,
+		Size = UDim2.new(1, 0, 0, 40),
+		Parent = side,
+	})
+	help.Activated:Connect(function()
+		TutorialController.Begin()
+	end)
 end
 
 -- Updates -------------------------------------------------------------------------------------
@@ -276,6 +323,11 @@ local function refreshProfile()
 	local into = player:GetAttribute("XPInto") or 0
 	local needed = player:GetAttribute("XPNeeded") or 100
 	refs.LevelLabel.Text = string.format("LV %d · %s", level, title)
+	local bonks = player:GetAttribute("Bonks") or 0
+	if refs.BonksLabel.Text ~= "💰 " .. bonks then
+		refs.BonksLabel.Text = "💰 " .. bonks
+		UI.pop(refs.BonksLabel, 1.2, 0.25)
+	end
 	UI.tween(refs.XPFill, 0.4, { Size = UDim2.new(math.clamp(into / math.max(needed, 1), 0, 1), 0, 1, 0) })
 end
 
@@ -300,7 +352,7 @@ local function refreshScoreboard()
 		local crown = if row.Crown then "👑 " else ""
 		local name = tostring(row.Name)
 		if #name > 14 then
-			name = string.sub(name, 1, 13) .. "…"
+			name = string.sub(name, 1, 13) .. "..."
 		end
 		local label = UI.label({
 			Name = "Row",
@@ -333,15 +385,15 @@ local function refreshState()
 		refs.InfoLabel.Text = string.format("%s · %s", eventName, arenaName)
 	elseif stateName == "Draft" then
 		refs.StateLabel.Text = STATE_TITLES.Draft
-		refs.InfoLabel.Text = string.format("Next: round %d of %d", round + 1, maxRounds)
+		refs.InfoLabel.Text = string.format("Round %d of %d is next", round + 1, maxRounds)
 	elseif stateName == "MatchEnd" then
 		refs.StateLabel.Text = STATE_TITLES.MatchEnd
 		refs.InfoLabel.Text = "Champion: " .. tostring(gameState:GetAttribute("Champion") or "?")
 	else
 		refs.StateLabel.Text = STATE_TITLES[stateName] or stateName
 		refs.InfoLabel.Text = if stateName == "Waiting"
-			then "Punch the dummies while you wait!"
-			else "Bots fill empty slots. Get comfy in the lobby."
+			then "Go punch the dummies while you wait"
+			else "Not enough people? Bots will join in."
 	end
 end
 
@@ -504,13 +556,13 @@ local function onKillFeed(data)
 		local bounty = if data.Bounty then "  👑 BOUNTY!" else ""
 		HUDController.Feed(string.format("💥 %s launched %s%s", killer, victim, bounty))
 		if data.KillerId == myId then
-			HUDController.Announce("KO!", "Big", if data.Bounty then "Bounty claimed! +1 bonus point" else "Launched " .. victim)
+			HUDController.Announce("KO!", "Big", if data.Bounty then "You took out the leader! +1 bonus point" else "You launched " .. victim)
 		end
 	else
-		HUDController.Feed(string.format("🕳️ %s fell into the void", victim), Color3.fromRGB(200, 205, 220))
+		HUDController.Feed(string.format("🕳️ %s fell off", victim), Color3.fromRGB(200, 205, 220))
 	end
 	if data.VictimId == myId then
-		HUDController.Announce("LAUNCHED!", "Event", if data.Killer then "by " .. tostring(data.Killer) else "Watch your step...")
+		HUDController.Announce("LAUNCHED!", "Event", if data.Killer then "by " .. tostring(data.Killer) else "Oops. Watch your step.")
 	end
 end
 
@@ -560,16 +612,16 @@ local function showResults(data)
 
 	local placement = data.Placement or 0
 	local ordinal = ({ "1st", "2nd", "3rd" })[placement] or (tostring(placement) .. "th")
-	line(if placement == 1 then "🏆 CHAMPION! 🏆" else "You placed " .. ordinal, 40, Color3.fromRGB(255, 210, 70))
+	line(if placement == 1 then "🏆 YOU WON! 🏆" else "You got " .. ordinal, 40, Color3.fromRGB(255, 210, 70))
 	line(string.format("%d points · %d KOs", data.Points or 0, data.KOs or 0), 22, nil, UI.BodyFont)
 	local medals = { "🥇", "🥈", "🥉" }
 	for index, entry in data.Podium or {} do
-		line(string.format("%s %s — %d pts", medals[index] or "", tostring(entry.Name), entry.Points or 0), 22, nil, UI.BodyFont)
+		line(string.format("%s %s  %d pts", medals[index] or "", tostring(entry.Name), entry.Points or 0), 22, nil, UI.BodyFont)
 	end
 
 	local rewards = data.Rewards
 	if type(rewards) == "table" then
-		line(string.format("+%d XP", rewards.XP or 0), 34, Color3.fromRGB(140, 255, 90))
+		line(string.format("+%d XP    +%d Bonks", rewards.XP or 0, rewards.Bonks or 0), 34, Color3.fromRGB(140, 255, 90))
 		for _, text in rewards.Breakdown or {} do
 			line(tostring(text), 18, Color3.fromRGB(190, 195, 210), UI.BodyFont)
 		end
@@ -580,7 +632,7 @@ local function showResults(data)
 			line("🔓 " .. tostring(unlock), 22, Color3.fromRGB(255, 184, 40), UI.BodyFont)
 		end
 		if rewards.Persistent == false then
-			line("(Progress isn't saved in this session)", 16, Color3.fromRGB(160, 160, 170), UI.BodyFont)
+			line("(Progress doesn't save in this test session)", 16, Color3.fromRGB(160, 160, 170), UI.BodyFont)
 		end
 	end
 
@@ -637,7 +689,7 @@ function HUDController.Start()
 			refreshState()
 		end
 	end)
-	for _, attribute in { "Level", "Title", "XPInto", "XPNeeded" } do
+	for _, attribute in { "Level", "Title", "XPInto", "XPNeeded", "Bonks" } do
 		player:GetAttributeChangedSignal(attribute):Connect(refreshProfile)
 	end
 

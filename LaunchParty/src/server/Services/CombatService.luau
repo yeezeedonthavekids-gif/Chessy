@@ -203,9 +203,8 @@ function CombatService.ReleasePunch(fighter: Fighter, aimInput: any): boolean
 	local origin = root.Position
 	local range = C.PunchRange + C.RangeLeniency + (if charged then C.ChargeRangeBonus else 0)
 
-	if fighter.AnimPlayer then
-		fighter.AnimPlayer(if charged then "Charged" else "Punch")
-	end
+	-- Every client animates the swing (procedural, see AnimationController).
+	effectRemote:FireAllClients("Swing", { Fighter = fighter.Id, Charged = charged })
 
 	local candidates = {}
 	for _, other in FighterService.All() do
@@ -297,9 +296,6 @@ function CombatService.TryDash(fighter: Fighter, directionInput: any): boolean
 
 	if not fighter.Player then
 		Movement.Dash(fighter.Humanoid :: Humanoid, root, direction, C)
-		if fighter.AnimPlayer then
-			fighter.AnimPlayer("Charged")
-		end
 	end
 	effectRemote:FireAllClients("Dash", { Position = root.Position, Fighter = fighter.Id })
 	return true

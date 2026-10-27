@@ -226,7 +226,7 @@ end
 EventService.Classic = {
 	Id = "Classic",
 	Name = "Classic",
-	Description = "No tricks. Just fists.",
+	Description = "Nothing special this round. Just punching.",
 	Start = function()
 		return noop
 	end,
@@ -236,7 +236,7 @@ EventService.Events = {
 	{
 		Id = "LowGravity",
 		Name = "Low Gravity",
-		Description = "Floaty jumps. Launches go to the moon.",
+		Description = "Everyone floats. Hits send you flying way further.",
 		Start = function()
 			Workspace.Gravity = E.LowGravity
 			return function()
@@ -247,13 +247,13 @@ EventService.Events = {
 	{
 		Id = "Meteors",
 		Name = "Meteor Shower",
-		Description = "Watch the red circles. They punch holes in the arena.",
+		Description = "Stay out of the red circles. Meteors knock holes in the floor.",
 		Start = startMeteors,
 	},
 	{
 		Id = "Ice",
 		Name = "Ice Rink",
-		Description = "Zero friction. Every hit slides you way further.",
+		Description = "The floor is ice, so you slide a lot further when you get hit.",
 		Start = function()
 			ArenaService.SetIce(true)
 			return noop
@@ -262,13 +262,13 @@ EventService.Events = {
 	{
 		Id = "Sweeper",
 		Name = "The Sweeper",
-		Description = "A spinning beam that speeds up. JUMP!",
+		Description = "There's a spinning laser and it keeps speeding up. Jump over it.",
 		Start = startSweeper,
 	},
 	{
 		Id = "Gusts",
 		Name = "Gusty Skies",
-		Description = "Wind blasts everyone sideways. Brace yourself.",
+		Description = "Big gusts of wind push everyone around. Watch for the warning.",
 		Start = startGusts,
 	},
 } :: { EventDef }

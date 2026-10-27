@@ -1,7 +1,15 @@
 -- LAUNCH PARTY client bootstrap.
 local Controllers = script:WaitForChild("Controllers")
 
-local ORDER = { "EffectsController", "HUDController", "DraftController", "InputController" }
+local ORDER = {
+	"AnimationController",
+	"EffectsController",
+	"ShopController",
+	"TutorialController",
+	"HUDController",
+	"DraftController",
+	"InputController",
+}
 
 for _, name in ORDER do
 	local ok, controller = pcall(require, Controllers:WaitForChild(name))

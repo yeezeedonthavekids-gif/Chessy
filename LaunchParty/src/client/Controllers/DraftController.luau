@@ -18,6 +18,7 @@ local DraftController = {}
 
 local player = Players.LocalPlayer
 local pickRemote = Net.Event("DraftPick")
+local rerollRemote = Net.Event("DraftReroll")
 
 local overlay: Frame? = nil
 local picked = false
@@ -64,7 +65,7 @@ local function choose(index: number)
 	end
 	local status = overlay:FindFirstChild("Status") :: TextLabel?
 	if status then
-		status.Text = "Locked in! Waiting for everyone else…"
+		status.Text = "Locked in. Waiting on everyone else..."
 	end
 end
 
@@ -74,7 +75,7 @@ local function buildCard(index: number, card: { [string]: any }, parent: Instanc
 		Name = "Card" .. index,
 		LayoutOrder = index,
 		Size = UDim2.new(0, 210, 0, 270),
-		BackgroundColor3 = Color3.fromRGB(28, 30, 46),
+		BackgroundColor3 = color:Lerp(Color3.new(0, 0, 0), 0.6),
 		AutoButtonColor = false,
 		Text = "",
 		Parent = parent,
@@ -130,7 +131,7 @@ local function buildCard(index: number, card: { [string]: any }, parent: Instanc
 		Size = UDim2.new(1, 0, 0, 18),
 		Font = UI.BodyFont,
 		TextColor3 = Color3.fromRGB(170, 175, 195),
-		Text = if owned > 0 then string.format("Owned %d / %d", owned, card.MaxStacks) else "NEW",
+		Text = if owned > 0 then string.format("You have %d of %d", owned, card.MaxStacks) else "NEW",
 		Parent = button,
 	})
 	UI.label({
@@ -155,7 +156,7 @@ local function buildCard(index: number, card: { [string]: any }, parent: Instanc
 	return button
 end
 
-local function open(cards: { { [string]: any } }, endsAt: number)
+local function open(cards: { { [string]: any } }, endsAt: number, canReroll: boolean)
 	close()
 	picked = false
 	local gui = player.PlayerGui:FindFirstChild("LaunchPartyHUD") or player.PlayerGui
@@ -185,7 +186,7 @@ local function open(cards: { { [string]: any } }, endsAt: number)
 		Position = UDim2.new(0.5, 0, 0.12, 64),
 		Size = UDim2.new(0.8, 0, 0, 24),
 		Font = UI.BodyFont,
-		Text = "Perks stack for the rest of the match.",
+		Text = "These stay with you until the match ends.",
 		Parent = root,
 	})
 
@@ -236,15 +237,31 @@ local function open(cards: { { [string]: any } }, endsAt: number)
 		timerFill.Size = UDim2.fromScale(remaining / total, 1)
 	end)
 
+	if canReroll then
+		local reroll = UI.button("🎲 Reroll", Color3.fromRGB(255, 215, 70), Color3.fromRGB(255, 150, 30), {
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 0.55, 190),
+			Size = UDim2.new(0, 160, 0, 38),
+			ZIndex = 11,
+			Parent = root,
+		})
+		reroll.Activated:Connect(function()
+			if not picked then
+				reroll.Visible = false
+				rerollRemote:FireServer()
+			end
+		end)
+	end
+
 	if UserInputService.GamepadEnabled and cardButtons[1] then
 		GuiService.SelectedObject = cardButtons[1]
 	end
 end
 
 function DraftController.Start()
-	Net.Event("DraftOffer").OnClientEvent:Connect(function(cards, endsAt)
+	Net.Event("DraftOffer").OnClientEvent:Connect(function(cards, endsAt, canReroll)
 		if type(cards) == "table" and type(endsAt) == "number" and #cards > 0 then
-			open(cards, endsAt)
+			open(cards, endsAt, canReroll == true)
 		end
 	end)
 	Net.Event("DraftClose").OnClientEvent:Connect(close)

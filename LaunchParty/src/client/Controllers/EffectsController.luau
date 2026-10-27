@@ -12,6 +12,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local Movement = require(Shared:WaitForChild("Movement"))
 local Net = require(Shared:WaitForChild("Net"))
 
+local AnimationController = require(script.Parent.AnimationController)
 local State = require(script.Parent.State)
 
 local EffectsController = {}
@@ -51,7 +52,10 @@ local function fxPart(props: { [string]: any }): Part
 	return part
 end
 
-function EffectsController.PlaySound(soundId: string, position: Vector3?, volume: number?, pitch: number?)
+function EffectsController.PlaySound(soundId: string?, position: Vector3?, volume: number?, pitch: number?)
+	if not soundId or soundId == "" then
+		return
+	end
 	local sound = Instance.new("Sound")
 	sound.SoundId = soundId
 	sound.Volume = volume or 0.6
@@ -179,6 +183,9 @@ function handlers.Hit(data)
 	end
 	EffectsController.PlaySound(Config.Sounds.Hit, position, 0.5 + strength * 0.6, 1.25 - strength * 0.4)
 
+	if data.Victim then
+		AnimationController.PlayForFighter(data.Victim, "Flinch")
+	end
 	local myId = State.MyId()
 	if data.Attacker == myId then
 		EffectsController.Shake(0.25 + strength * 0.5, 0.18)
@@ -232,10 +239,17 @@ function handlers.Shockwave(data)
 	burst(data.Position, Color3.fromRGB(255, 200, 120), 8, 0.3)
 end
 
+function handlers.Swing(data)
+	if data.Fighter ~= State.MyId() then
+		AnimationController.PlayForFighter(data.Fighter, if data.Charged then "Haymaker" else "Jab")
+	end
+end
+
 function handlers.Dash(data)
 	if data.Fighter == State.MyId() then
 		return
 	end
+	AnimationController.PlayForFighter(data.Fighter, "Dash")
 	ring(data.Position - Vector3.new(0, 2.5, 0), Color3.fromRGB(200, 240, 255), 4, 0.3)
 end
 
@@ -274,7 +288,34 @@ function handlers.Gust(data)
 	windStreaks(data.Direction, data.Center, 0.7, 0.3)
 end
 
+local CONFETTI = {
+	Color3.fromRGB(255, 90, 120),
+	Color3.fromRGB(255, 210, 60),
+	Color3.fromRGB(90, 230, 140),
+	Color3.fromRGB(80, 170, 255),
+	Color3.fromRGB(200, 110, 255),
+}
+
+local function confetti(position: Vector3, amount: number)
+	for _ = 1, amount do
+		local piece = fxPart({
+			Anchored = false,
+			Material = Enum.Material.SmoothPlastic,
+			Size = Vector3.new(0.6, 0.08, 0.35),
+			CFrame = CFrame.new(position) * CFrame.Angles(random:NextNumber(0, 6), random:NextNumber(0, 6), 0),
+			Color = CONFETTI[random:NextInteger(1, #CONFETTI)],
+		})
+		piece.AssemblyLinearVelocity = Vector3.new(random:NextNumber(-25, 25), random:NextNumber(35, 70), random:NextNumber(-25, 25))
+		piece.AssemblyAngularVelocity = random:NextUnitVector() * 15
+		Debris:AddItem(piece, 2.5)
+	end
+end
+
 function handlers.RoundWin(data)
+	AnimationController.PlayForFighter(data.Fighter, "Victory")
+	if data.Position then
+		confetti(data.Position + Vector3.new(0, 3, 0), 60)
+	end
 	if data.Fighter == State.MyId() then
 		EffectsController.FovKick(-8)
 	end

@@ -16,6 +16,7 @@ local DataService = require(script.Parent.DataService)
 local DraftService = require(script.Parent.DraftService)
 local EventService = require(script.Parent.EventService)
 local FighterService = require(script.Parent.FighterService)
+local ShopService = require(script.Parent.ShopService)
 
 type Fighter = FighterService.Fighter
 
@@ -200,9 +201,9 @@ local function secondWind(fighter: Fighter)
 	local cframe = ArenaService.GetSafeCFrame()
 	FighterService.Teleport(fighter, cframe)
 	effectRemote:FireAllClients("SecondWind", { Position = cframe.Position, Fighter = fighter.Id })
-	feedRemote:FireAllClients({ Text = string.format("💨 %s used Second Wind!", fighter.Name) })
+	feedRemote:FireAllClients({ Text = string.format("💨 %s got a Second Wind!", fighter.Name) })
 	if fighter.Player then
-		announce("SECOND WIND!", "Small", "The void spat you back out.", fighter.Player)
+		announce("SECOND WIND!", "Small", "You got one more chance. Don't waste it.", fighter.Player)
 	end
 end
 
@@ -271,7 +272,7 @@ local function addLateJoiners()
 			FighterService.ResetForMatch(fighter)
 			fighter.InMatch = true
 			table.insert(participants, fighter)
-			announce("You're in!", "Small", "Joining the match this round.", player)
+			announce("You're in!", "Small", "You're joining this round.", player)
 		end
 	end
 end
@@ -333,7 +334,9 @@ local function runRound(round: number)
 	table.clear(eliminationOrder)
 
 	local shape = if round == 1 then "Disc" else ArenaService.ShapeNames[rng:NextInteger(1, #ArenaService.ShapeNames)]
-	ArenaService.Build(shape)
+	local theme = ArenaService.PickTheme(round)
+	ArenaService.ApplyTheme(theme)
+	ArenaService.Build(shape, theme)
 	local event = EventService.Pick(round)
 	setState("Countdown", M.CountdownTime + 2, {
 		Round = round,
@@ -341,6 +344,7 @@ local function runRound(round: number)
 		Event = event.Name,
 		EventDesc = event.Description,
 		Arena = ArenaService.ShapeTitles[shape] or shape,
+		Theme = theme.Name,
 		SuddenDeath = false,
 	})
 
@@ -368,7 +372,7 @@ local function runRound(round: number)
 	end
 	publishScoreboard()
 
-	announce(string.format("ROUND %d", round), "Big", event.Name .. " — " .. event.Description)
+	announce(string.format("ROUND %d", round), "Big", event.Name .. ": " .. event.Description)
 	task.wait(2)
 	for count = M.CountdownTime, 1, -1 do
 		announce(tostring(count), "Count")
@@ -382,7 +386,7 @@ local function runRound(round: number)
 	end
 	CombatService.SetArenaLive(true)
 	EventService.Start(event)
-	announce("LAUNCH!", "Big")
+	announce("GO!", "Big")
 	setState("Live", M.RoundTime)
 
 	local started = os.clock()
@@ -403,7 +407,7 @@ local function runRound(round: number)
 			if not suddenDeath then
 				suddenDeath = true
 				gameState:SetAttribute("SuddenDeath", true)
-				announce("SUDDEN DEATH", "Event", "The island is crumbling!")
+				announce("SUDDEN DEATH", "Event", "The edges are falling apart. Get to the middle!")
 			end
 			local interval = if spectatorsOnly then M.FastCrumbleInterval else M.CrumbleInterval
 			if os.clock() - lastCrumble >= interval then
@@ -428,8 +432,11 @@ local function runRound(round: number)
 	local winner = placements[1]
 	setState("RoundEnd", M.RoundEndTime)
 	if winner then
-		announce(winner.Name .. " WINS!", "Big", string.format("Round %d of %d", round, M.RoundsPerMatch))
-		effectRemote:FireAllClients("RoundWin", { Fighter = winner.Id })
+		announce(winner.Name .. " wins the round!", "Big", string.format("Round %d of %d done", round, M.RoundsPerMatch))
+		effectRemote:FireAllClients("RoundWin", {
+			Fighter = winner.Id,
+			Position = if winner.Root then winner.Root.Position else nil,
+		})
 	end
 
 	task.wait(1.5)
@@ -444,7 +451,7 @@ end
 
 local function runDraft()
 	setState("Draft", M.DraftTime)
-	announce("DRAFT A PERK", "Big", "Lower placements get luckier cards.")
+	announce("PICK A PERK", "Big", "If you did badly, your cards are better.")
 	local luckBy: { [Fighter]: number } = {}
 	local count = #lastPlacements
 	for index, fighter in lastPlacements do
@@ -474,7 +481,7 @@ local function finishMatch()
 	local champion = ranked[1]
 	setState("MatchEnd", M.MatchEndTime, { Champion = if champion then champion.Name else "" })
 	if champion then
-		announce("👑 " .. champion.Name .. " 👑", "Big", "is the LAUNCH PARTY champion!")
+		announce("👑 " .. champion.Name .. " 👑", "Big", "won the whole match. GG!")
 	end
 
 	for index, fighter in ranked do
@@ -517,6 +524,7 @@ local function cleanupMatch()
 	table.clear(eliminationOrder)
 	table.clear(lastPlacements)
 	ArenaService.Clear()
+	ArenaService.ApplyTheme(ArenaService.Themes[1])
 	publishScoreboard()
 end
 
@@ -574,6 +582,7 @@ local function onCharacter(fighter: Fighter, character: Model)
 	end
 	FighterService.BindModel(fighter, character)
 	fighter.Zone = "Lobby"
+	ShopService.ApplyCosmetics(fighter)
 end
 
 local function onPlayerAdded(player: Player)

@@ -10,6 +10,9 @@ local REMOTE_NAMES = {
 	"Punch",
 	"Dash",
 	"DraftPick",
+	"DraftReroll",
+	"ShopAction",
+	"TutorialDone",
 	-- server -> client
 	"Knockback",
 	"Effect",
@@ -18,6 +21,7 @@ local REMOTE_NAMES = {
 	"DraftOffer",
 	"DraftClose",
 	"MatchResults",
+	"ShopResult",
 }
 
 local IS_SERVER = RunService:IsServer()

@@ -1,6 +1,7 @@
 -- Tiny shared client state so controllers can talk without depending on each other.
 local comboChanged = Instance.new("BindableEvent")
 local bigMessage = Instance.new("BindableEvent")
+local dashed = Instance.new("BindableEvent")
 
 local State = {
 	Charging = false,
@@ -13,6 +14,8 @@ local State = {
 	ComboChanged = comboChanged,
 	-- Fire(text, style, subtitle) to show a local-only announcement.
 	BigMessage = bigMessage,
+	-- Fires when the local player dashes.
+	Dashed = dashed,
 }
 
 function State.MyId(): string
