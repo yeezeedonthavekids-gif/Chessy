@@ -7,6 +7,7 @@ local CombatService = require(Services.CombatService)
 local DataService = require(Services.DataService)
 local DraftService = require(Services.DraftService)
 local RoundService = require(Services.RoundService)
+local QuestService = require(Services.QuestService)
 local ShopService = require(Services.ShopService)
 
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
@@ -17,6 +18,7 @@ CombatService.Init()
 BotService.Init()
 DraftService.Init()
 ShopService.Init()
+QuestService.Init()
 RoundService.Init()
 
 -- Practice dummies in the lobby so there's always something to launch.

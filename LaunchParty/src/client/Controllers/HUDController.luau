@@ -1,6 +1,7 @@
 -- The whole heads-up display, built in code.
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local SocialService = game:GetService("SocialService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
@@ -194,7 +195,7 @@ local function buildKillFeed()
 	refs.KillFeed = UI.new("Frame", {
 		Name = "KillFeed",
 		Position = UDim2.new(0, 12, 0, 90),
-		Size = UDim2.new(0, 320, 0, 200),
+		Size = UDim2.new(0, 320, 0, 120),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, {
@@ -277,9 +278,8 @@ local function buildProfile()
 	-- Bonks counter + shop/help buttons on the left.
 	local side = UI.new("Frame", {
 		Name = "SideButtons",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 12, 0.5, 20),
-		Size = UDim2.new(0, 150, 0, 160),
+		Position = UDim2.new(0, 12, 0, 222),
+		Size = UDim2.new(0, 150, 0, 210),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, {
@@ -313,6 +313,111 @@ local function buildProfile()
 	help.Activated:Connect(function()
 		TutorialController.Begin()
 	end)
+	local invite = UI.button("👋 INVITE", Color3.fromRGB(60, 64, 86), Color3.fromRGB(40, 43, 60), {
+		LayoutOrder = 4,
+		Size = UDim2.new(1, 0, 0, 40),
+		Parent = side,
+	})
+	invite.Activated:Connect(function()
+		local ok, canInvite = pcall(function()
+			return SocialService:CanSendGameInviteAsync(player)
+		end)
+		if ok and canInvite then
+			pcall(function()
+				SocialService:PromptGameInvite(player)
+			end)
+		else
+			State.BigMessage:Fire("Can't send invites here", "Small", "Invites only work in the live game.")
+		end
+	end)
+
+	-- Daily quests.
+	local quests = UI.new("Frame", {
+		Name = "Quests",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 12, 1, -96),
+		Size = UDim2.new(0, 250, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Parent = gui,
+	}, {
+		UI.corner(12),
+		UI.gradient(Color3.fromRGB(34, 36, 52), Color3.fromRGB(22, 24, 36)),
+		UI.new("UIPadding", {
+			PaddingTop = UDim.new(0, 6),
+			PaddingBottom = UDim.new(0, 8),
+			PaddingLeft = UDim.new(0, 10),
+			PaddingRight = UDim.new(0, 10),
+		}),
+		UI.new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }),
+	})
+	refs.QuestTitle = UI.label({
+		LayoutOrder = 0,
+		Size = UDim2.new(1, 0, 0, 18),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Color3.fromRGB(255, 205, 80),
+		Text = "DAILY QUESTS",
+		Parent = quests,
+	})
+	refs.Quests = quests
+end
+
+local function refreshQuests()
+	local panel = refs.Quests
+	for _, child in panel:GetChildren() do
+		if child.Name == "Quest" then
+			child:Destroy()
+		end
+	end
+	local ok, list = pcall(function()
+		return HttpService:JSONDecode(player:GetAttribute("Quests") or "[]")
+	end)
+	-- Short screens (phones in landscape) don't have room; quests still track in the background.
+	local camera = Workspace.CurrentCamera
+	local roomy = camera == nil or camera.ViewportSize.Y >= 600
+	if not ok or type(list) ~= "table" or #list == 0 or not roomy then
+		panel.Visible = false
+		return
+	end
+	panel.Visible = true
+	for index, quest in list do
+		local row = UI.new("Frame", {
+			Name = "Quest",
+			LayoutOrder = index,
+			Size = UDim2.new(1, 0, 0, 30),
+			BackgroundTransparency = 1,
+			Parent = panel,
+		})
+		UI.label({
+			Size = UDim2.new(0.72, 0, 0, 16),
+			Font = UI.BodyFont,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = if quest.Done then Color3.fromRGB(140, 220, 120) else Color3.new(1, 1, 1),
+			Text = (if quest.Done then "✓ " else "") .. tostring(quest.Text),
+			Parent = row,
+		})
+		UI.label({
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, 0, 0, 0),
+			Size = UDim2.new(0.28, 0, 0, 16),
+			Font = UI.BodyFont,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			TextColor3 = Color3.fromRGB(255, 205, 80),
+			Text = "💰" .. tostring(quest.Reward),
+			Parent = row,
+		})
+		local back = UI.new("Frame", {
+			Position = UDim2.new(0, 0, 0, 20),
+			Size = UDim2.new(1, 0, 0, 6),
+			BackgroundColor3 = Color3.fromRGB(50, 53, 70),
+			Parent = row,
+		}, { UI.corner(3) })
+		UI.new("Frame", {
+			Size = UDim2.new(math.clamp((quest.Progress or 0) / math.max(quest.Goal or 1, 1), 0, 1), 0, 1, 0),
+			BackgroundColor3 = if quest.Done then Color3.fromRGB(110, 210, 110) else Color3.fromRGB(255, 205, 80),
+			Parent = back,
+		}, { UI.corner(3) })
+	end
 end
 
 -- Updates -------------------------------------------------------------------------------------
@@ -462,6 +567,14 @@ local function renderStep()
 
 	updateDashPips()
 
+	local resetAt = player:GetAttribute("QuestsResetAt")
+	if type(resetAt) == "number" then
+		local hours = math.max(0, resetAt - os.time()) / 3600
+		refs.QuestTitle.Text = if hours >= 1
+			then string.format("DAILY QUESTS  ·  new in %dh", math.floor(hours))
+			else string.format("DAILY QUESTS  ·  new in %dm", math.ceil(hours * 60))
+	end
+
 	if refs.ComboLabel.Visible and os.clock() - State.LastComboHit > 1.6 then
 		refs.ComboLabel.Visible = false
 	end
@@ -529,7 +642,7 @@ function HUDController.Feed(text: string, color: Color3?)
 	table.sort(entries, function(a, b)
 		return a.LayoutOrder < b.LayoutOrder
 	end)
-	while #entries > 6 do
+	while #entries > 4 do
 		table.remove(entries, 1):Destroy()
 	end
 	task.delay(6, function()
@@ -669,6 +782,8 @@ function HUDController.Start()
 	refreshState()
 	refreshScoreboard()
 	refreshProfile()
+	refreshQuests()
+	player:GetAttributeChangedSignal("Quests"):Connect(refreshQuests)
 
 	-- Our own heat is on the HUD, so hide the floating tag above our head.
 	local function hideOwnTag(character: Model)

@@ -35,6 +35,7 @@ function Movement.Knockback(humanoid: Humanoid, root: BasePart, velocity: Vector
 		return
 	end
 	local token = nextToken(humanoid)
+	root.Anchored = false
 	if tumble > 0 then
 		humanoid.PlatformStand = true
 	end
@@ -56,6 +57,32 @@ function Movement.Knockback(humanoid: Humanoid, root: BasePart, velocity: Vector
 	end
 end
 
+-- Hitstop: freeze the victim for a split second before the launch. Makes hits feel heavy.
+function Movement.HitstopThenKnockback(humanoid: Humanoid, root: BasePart, velocity: Vector3, tumble: number, stop: number)
+	if stop <= 0 then
+		Movement.Knockback(humanoid, root, velocity, tumble)
+		return
+	end
+	local token = nextToken(humanoid)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.Anchored = true
+	task.delay(stop, function()
+		-- A newer hit took over; it handles unfreezing.
+		if tumbleTokens[humanoid] ~= token then
+			return
+		end
+		if root.Parent then
+			root.Anchored = false
+		end
+		Movement.Knockback(humanoid, root, velocity, tumble)
+	end)
+end
+
+-- How long the freeze lasts: bigger hits freeze longer.
+function Movement.HitstopFor(speed: number): number
+	return math.clamp(speed / 1400, 0.03, 0.12)
+end
+
 export type DashTuning = { DashSpeed: number, DashDuration: number, AirDashLift: number }
 
 -- Short, snappy burst. Cancels tumble so it doubles as a recovery move.
@@ -64,6 +91,7 @@ function Movement.Dash(humanoid: Humanoid, root: BasePart, direction: Vector3, t
 		return
 	end
 	Movement.CancelTumble(humanoid)
+	root.Anchored = false
 	local airborne = humanoid.FloorMaterial == Enum.Material.Air
 
 	local old = root:FindFirstChild("DashVelocity")

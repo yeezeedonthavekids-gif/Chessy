@@ -16,6 +16,7 @@ local DataService = require(script.Parent.DataService)
 local DraftService = require(script.Parent.DraftService)
 local EventService = require(script.Parent.EventService)
 local FighterService = require(script.Parent.FighterService)
+local QuestService = require(script.Parent.QuestService)
 local ShopService = require(script.Parent.ShopService)
 
 type Fighter = FighterService.Fighter
@@ -114,7 +115,15 @@ local function aliveCount(): number
 	return count
 end
 
+-- Lets the client know whether to show the spectate camera.
+local function setInArena(fighter: Fighter, inArena: boolean)
+	if fighter.Player then
+		fighter.Player:SetAttribute("InArena", inArena)
+	end
+end
+
 local function sendToLobby(fighter: Fighter)
+	setInArena(fighter, false)
 	fighter.Alive = false
 	fighter.Zone = "None"
 	FighterService.SetFrozen(fighter, false)
@@ -155,6 +164,7 @@ local function eliminate(fighter: Fighter)
 		return
 	end
 	fighter.Alive = false
+	setInArena(fighter, false)
 	table.insert(eliminationOrder, fighter)
 	local position = if fighter.Root then fighter.Root.Position else ArenaService.GetCenter()
 
@@ -175,6 +185,10 @@ local function eliminate(fighter: Fighter)
 		end
 		if killer.Player then
 			DataService.AddKO(killer.Player)
+			QuestService.Progress(killer.Player, "KOs")
+			if bounty then
+				QuestService.Progress(killer.Player, "Bounties")
+			end
 		end
 	end
 
@@ -259,6 +273,7 @@ local function spawnFighter(fighter: Fighter, cframe: CFrame): boolean
 	end
 	fighter.Zone = "Arena"
 	fighter.Alive = true
+	setInArena(fighter, true)
 	FighterService.SetHeat(fighter, 0)
 	FighterService.ApplyStats(fighter)
 	FighterService.SetFrozen(fighter, true)
@@ -279,6 +294,14 @@ end
 
 local function setupParticipants()
 	table.clear(participants)
+	-- Start bots off around the players' level: newer players get gentler bots.
+	local totalLevel, count = 0, 0
+	for _, player in realPlayers() do
+		totalLevel += DataService.GetLevel(player)
+		count += 1
+	end
+	local averageLevel = if count > 0 then totalLevel / count else 1
+	BotService.SetDifficulty(math.clamp(0.32 + averageLevel * 0.03, 0.32, 0.7))
 	for _, player in realPlayers() do
 		local fighter = FighterService.GetByPlayer(player)
 		if fighter then
@@ -427,6 +450,26 @@ local function runRound(round: number)
 	end
 	lastPlacements = placements
 	updateCrown()
+
+	-- Quests + adaptive bots: if a real player won, bots try harder; if every real player
+	-- ended up in the bottom half, bots ease off.
+	local bestReal = math.huge
+	for index, fighter in placements do
+		if fighter.Player then
+			bestReal = math.min(bestReal, index)
+			if index == 1 then
+				QuestService.Progress(fighter.Player, "RoundWins")
+			end
+			if index <= 2 then
+				QuestService.Progress(fighter.Player, "TopTwo")
+			end
+		end
+	end
+	if bestReal == 1 then
+		BotService.SetDifficulty(BotService.GetDifficulty() + 0.07)
+	elseif bestReal > #placements / 2 then
+		BotService.SetDifficulty(BotService.GetDifficulty() - 0.1)
+	end
 	publishScoreboard()
 
 	local winner = placements[1]
@@ -487,6 +530,10 @@ local function finishMatch()
 	for index, fighter in ranked do
 		local player = fighter.Player
 		if player and player.Parent then
+			QuestService.Progress(player, "Matches")
+			if index == 1 then
+				QuestService.Progress(player, "MatchWins")
+			end
 			local rewards = DataService.AwardMatch(player, {
 				Points = fighter.Points,
 				KOs = fighter.KOs,

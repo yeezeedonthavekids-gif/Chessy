@@ -4,6 +4,7 @@ local Draft = require("../src/shared/Draft")
 local Knockback = require("../src/shared/Knockback")
 local Perks = require("../src/shared/Perks")
 local Progression = require("../src/shared/Progression")
+local Quests = require("../src/shared/Quests")
 
 local passed, failed = 0, 0
 
@@ -208,6 +209,36 @@ test("match xp rewards winning and doubles the daily first win", function()
 	expect(daily == win * 2)
 	local notWinner = Progression.MatchXP({ Points = 0, KOs = 0, Placement = 2, Won = false, DailyBonus = true })
 	expect(notWinner == 60, "daily bonus only applies to wins")
+end)
+
+-- Quests ----------------------------------------------------------------------------------
+
+test("daily quests are stable for a player and day", function()
+	local a = Quests.PickDaily(20000, 12345, 3)
+	local b = Quests.PickDaily(20000, 12345, 3)
+	expect(#a == 3 and a[1] == b[1] and a[2] == b[2] and a[3] == b[3])
+end)
+
+test("daily quests are distinct and valid", function()
+	for day = 19000, 19200 do
+		local picked = Quests.PickDaily(day, day * 31, 3)
+		expect(#picked == 3)
+		expect(picked[1] ~= picked[2] and picked[2] ~= picked[3] and picked[1] ~= picked[3])
+		for _, id in picked do
+			expect(Quests.ById[id] ~= nil, "unknown quest " .. id)
+		end
+	end
+end)
+
+test("daily quests change from day to day", function()
+	local changes = 0
+	for day = 19000, 19030 do
+		local today, tomorrow = Quests.PickDaily(day, 777, 3), Quests.PickDaily(day + 1, 777, 3)
+		if today[1] ~= tomorrow[1] or today[2] ~= tomorrow[2] or today[3] ~= tomorrow[3] then
+			changes += 1
+		end
+	end
+	expect(changes >= 25, "only changed on " .. changes .. " of 31 days")
 end)
 
 print(string.format("\n%d passed, %d failed", passed, failed))

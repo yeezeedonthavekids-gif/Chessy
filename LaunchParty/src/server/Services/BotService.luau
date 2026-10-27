@@ -31,6 +31,7 @@ local SKIN = Color3.fromRGB(255, 214, 170)
 
 local rng = Random.new()
 local nextBotId = 0
+local difficulty = 0.5 -- 0 = pushover, 1 = sweaty. RoundService adjusts this between rounds.
 local bots: { Fighter } = {}
 local fighterFolder: Folder? = nil
 
@@ -168,7 +169,7 @@ function BotService.CreateBot(): Fighter
 	fighter.Brain = {
 		Shirt = palette[1],
 		Pants = palette[2],
-		Skill = rng:NextNumber(0.35, 0.85),
+		Skill = math.clamp(difficulty + rng:NextNumber(-0.12, 0.12), 0.15, 0.95),
 		Target = nil,
 		NextRetarget = 0,
 		NextAttack = 0,
@@ -545,6 +546,20 @@ function BotService.Init()
 			end
 		end
 	end)
+end
+
+-- Retunes every bot: lower = slower reactions, worse aim, fewer recoveries.
+function BotService.SetDifficulty(value: number)
+	difficulty = math.clamp(value, 0.15, 0.95)
+	for _, bot in bots do
+		if not bot.IsDummy and bot.Brain then
+			bot.Brain.Skill = math.clamp(difficulty + rng:NextNumber(-0.12, 0.12), 0.15, 0.95)
+		end
+	end
+end
+
+function BotService.GetDifficulty(): number
+	return difficulty
 end
 
 -- Lets events (e.g. the Sweeper) nudge bots into jumping.

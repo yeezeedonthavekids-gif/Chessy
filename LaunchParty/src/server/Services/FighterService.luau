@@ -423,7 +423,8 @@ function FighterService.ApplyKnockback(fighter: Fighter, velocity: Vector3, tumb
 	if fighter.Player then
 		knockbackRemote:FireClient(fighter.Player, velocity, tumble)
 	else
-		Movement.Knockback(fighter.Humanoid :: Humanoid, fighter.Root :: BasePart, velocity, tumble)
+		local stop = if tumble > 0 and velocity.Magnitude > 1 then Movement.HitstopFor(velocity.Magnitude) else 0
+		Movement.HitstopThenKnockback(fighter.Humanoid :: Humanoid, fighter.Root :: BasePart, velocity, tumble, stop)
 	end
 end
 

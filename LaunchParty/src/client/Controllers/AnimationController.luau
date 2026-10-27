@@ -109,7 +109,7 @@ local GESTURES = {
 
 type Gesture = { Pose: Pose, Kind: string, Start: number, Duration: number, Attack: number, Hold: number }
 type Joint = { Motor: Motor6D, BaseRotation: CFrame, Dirty: boolean }
-type Rig = { Joints: { [string]: Joint }, Gestures: { Gesture }, NextLeft: boolean, Charge: number }
+type Rig = { Joints: { [string]: Joint }, Gestures: { Gesture }, NextLeft: boolean, Charge: number, FrozenUntil: number }
 
 local rigs: { [Model]: Rig | false } = {}
 
@@ -132,7 +132,7 @@ local function getRig(model: Model): Rig?
 		rigs[model] = false -- not an R15 rig (e.g. R6 or the fallback bot rig); skip it
 		return nil
 	end
-	local rig: Rig = { Joints = joints, Gestures = {}, NextLeft = false, Charge = 0 }
+	local rig: Rig = { Joints = joints, Gestures = {}, NextLeft = false, Charge = 0, FrozenUntil = 0 }
 	rigs[model] = rig
 	model.AncestryChanged:Connect(function(_, parent)
 		if parent == nil then
@@ -299,6 +299,33 @@ function AnimationController.Play(model: Model?, kind: string)
 	})
 end
 
+function AnimationController.ModelFor(fighterId: string): Model?
+	return modelForFighter(fighterId)
+end
+
+-- Freeze a fighter's current pose for a moment (hitstop on the attacker).
+function AnimationController.Hitstop(fighterId: string, duration: number)
+	local model = modelForFighter(fighterId)
+	if not model then
+		return
+	end
+	local rig = getRig(model)
+	if rig then
+		rig.FrozenUntil = os.clock() + duration
+	end
+	local cache = trackCache[model]
+	if cache and not replicatedByOwner(model) then
+		for _, track in cache do
+			if track.IsPlaying then
+				track:AdjustSpeed(0.02)
+				task.delay(duration, function()
+					track:AdjustSpeed(1)
+				end)
+			end
+		end
+	end
+end
+
 function AnimationController.PlayForFighter(fighterId: string, kind: string)
 	AnimationController.Play(modelForFighter(fighterId), kind)
 end
@@ -325,6 +352,13 @@ local function addPose(totals: { [string]: Vector3 }, pose: Pose, weight: number
 end
 
 local function updateRig(model: Model, rig: Rig, now: number, dt: number)
+	if now < rig.FrozenUntil then
+		-- Hitstop: hold the pose, and push gestures back so they resume where they left off.
+		for _, gesture in rig.Gestures do
+			gesture.Start += dt
+		end
+		return
+	end
 	local totals: { [string]: Vector3 } = {}
 
 	-- Charging wind-up blends in/out smoothly and trembles the longer you hold it.

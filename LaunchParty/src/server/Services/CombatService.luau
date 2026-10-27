@@ -20,6 +20,7 @@ local C = Config.Combat
 local effectRemote = Net.Event("Effect")
 
 local arenaLive = false
+local hitListeners: { (Fighter, Fighter, string) -> () } = {}
 local rateBuckets: { [Player]: { Tokens: number, Last: number } } = {}
 
 -- Validation helpers -------------------------------------------------------------
@@ -79,6 +80,11 @@ function CombatService.SetArenaLive(live: boolean)
 	end
 end
 
+-- Called with (attacker, victim, kind) whenever a fighter lands a hit.
+function CombatService.OnHit(callback: (Fighter, Fighter, string) -> ())
+	table.insert(hitListeners, callback)
+end
+
 function CombatService.IsArenaLive(): boolean
 	return arenaLive
 end
@@ -134,6 +140,12 @@ local function launch(victim: Fighter, attacker: Fighter?, spec: HitSpec)
 		end
 		if victimStats.Thorns > 0 then
 			FighterService.AddHeat(attacker, heatGain * victimStats.Thorns)
+		end
+	end
+
+	if attacker then
+		for _, listener in hitListeners do
+			task.spawn(listener, attacker, victim, spec.Kind)
 		end
 	end
 

@@ -21,6 +21,14 @@ ridiculous perk builds between rounds, and try not to be the one who falls into 
 - **Never empty.** Bots fill matches up to 4 fighters, and practice dummies wait in the lobby.
   Bots dash too: they dash in to bump you, sidestep your charged punches and air-dash back
   when you launch them.
+- **Never stuck watching from far away.** Get knocked out and the camera follows the fight
+  (starting with whoever got you). Flip between fighters or head back to the lobby.
+- **Hits feel heavy.** Hitstop (a split-second freeze for both fighters), a white impact flash,
+  camera shake and heat popups.
+- **Daily quests.** 3 a day (same 3 all day, new ones at midnight UTC), each paying Bonks.
+- **Bots match your skill.** Bots start easier for low-level players, get tougher when a player
+  wins rounds and ease off when players are struggling.
+- **Invite button** for bringing friends in.
 - **Tutorial.** New players get a short hands-on tutorial (punch, charge, dash) that pays
   50 Bonks. You can replay it any time with the HOW TO PLAY button.
 - **Looks.** Each round has a color theme (Sunny Meadow, Candy Clouds, Sunset Splash, Neon

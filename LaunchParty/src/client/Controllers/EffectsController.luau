@@ -185,6 +185,23 @@ function handlers.Hit(data)
 
 	if data.Victim then
 		AnimationController.PlayForFighter(data.Victim, "Flinch")
+		local victimModel = AnimationController.ModelFor(data.Victim)
+		if victimModel then
+			-- White impact flash.
+			local flash = Instance.new("Highlight")
+			flash.FillColor = Color3.new(1, 1, 1)
+			flash.OutlineColor = Color3.new(1, 1, 1)
+			flash.FillTransparency = 0.15
+			flash.OutlineTransparency = 0.3
+			flash.DepthMode = Enum.HighlightDepthMode.Occluded
+			flash.Parent = victimModel
+			TweenService:Create(flash, TweenInfo.new(0.18), { FillTransparency = 1, OutlineTransparency = 1 }):Play()
+			Debris:AddItem(flash, 0.2)
+		end
+	end
+	if data.Attacker then
+		-- The attacker freezes for the same split second the victim does.
+		AnimationController.Hitstop(data.Attacker, Movement.HitstopFor(speed))
 	end
 	local myId = State.MyId()
 	if data.Attacker == myId then
@@ -340,7 +357,8 @@ function EffectsController.Start()
 		if velocity.Magnitude > 0.5 then
 			State.LastKnockback = os.clock()
 		end
-		Movement.Knockback(humanoid, root, velocity, tumble)
+		local stop = if tumble > 0 and velocity.Magnitude > 1 then Movement.HitstopFor(velocity.Magnitude) else 0
+		Movement.HitstopThenKnockback(humanoid, root, velocity, tumble, stop)
 	end)
 
 	Net.Event("Effect").OnClientEvent:Connect(function(kind, data)

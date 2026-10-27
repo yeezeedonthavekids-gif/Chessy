@@ -55,6 +55,8 @@ local function defaultData(): { [string]: any }
 		Bundles = {},
 		Receipts = {},
 		TutorialDone = false,
+		QuestDay = 0,
+		Quests = {},
 	}
 end
 

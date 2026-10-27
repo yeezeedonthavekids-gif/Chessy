@@ -56,6 +56,12 @@ local STEPS: { Step } = {
 		Button = "Nice",
 	},
 	{
+		Title = "Two more things",
+		Body = "Daily quests (bottom left) pay out Bonks for the shop. And if you get knocked out, the camera follows the fight so you can watch.",
+		Wait = "next",
+		Button = "Cool",
+	},
+	{
 		Title = "Last tip",
 		Body = "Got launched? Don't panic. Dash back toward the island while you're in the air. That's it, have fun!",
 		Wait = "next",
