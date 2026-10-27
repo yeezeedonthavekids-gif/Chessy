@@ -1,0 +1,5744 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<Item class="ReplicatedStorage" referent="RBX00000001">
+		<Properties>
+			<string name="Name">ReplicatedStorage</string>
+		</Properties>
+		<Item class="Folder" referent="RBX00000002">
+			<Properties>
+				<string name="Name">Shared</string>
+			</Properties>
+			<Item class="ModuleScript" referent="RBX00000003">
+				<Properties>
+					<string name="Name">Config</string>
+					<ProtectedString name="Source"><![CDATA[-- All gameplay tuning lives here so balancing never requires touching logic.
+local Config = {}
+
+Config.GameName = "LAUNCH PARTY"
+
+Config.Match = {
+	MinFighters = 4, -- bots fill empty slots up to this many fighters
+	MaxBots = 5,
+	MinRealPlayers = 1,
+	RoundsPerMatch = 5,
+	FirstIntermission = 12,
+	CountdownTime = 3,
+	RoundTime = 90,
+	SuddenDeathAt = 45, -- seconds into a round before the edges start crumbling
+	CrumbleInterval = 2.2,
+	FastCrumbleInterval = 0.7, -- used once no real player is still alive
+	RoundEndTime = 4,
+	DraftTime = 14,
+	MatchEndTime = 11,
+	PlacementPoints = { 3, 2, 1 },
+	KOPoints = 1,
+	BountyBonus = 1,
+	KOCreditWindow = 6, -- seconds a hit still counts for KO credit
+}
+
+Config.Arena = {
+	Center = Vector3.new(0, 100, 0),
+	Radius = 46,
+	TileSize = 7,
+	VoidDepth = 35, -- fall this far below the arena surface and you're out
+	MinTiles = 5,
+}
+
+Config.Lobby = {
+	Center = Vector3.new(0, 140, 110),
+	Size = Vector3.new(80, 2, 44),
+	HeatCap = 40, -- lobby sparring can't build heat past this
+	VoidDepth = 30,
+}
+
+Config.Combat = {
+	PunchCooldown = 0.38,
+	PunchRange = 6,
+	RangeLeniency = 1.75, -- forgiveness for network latency
+	PunchCone = 0.2, -- minimum dot product between aim and target direction
+	JabHeat = 7,
+	JabKnock = 30,
+	ChargeMaxTime = 1.1,
+	ChargeThreshold = 0.28, -- fraction of a full charge that counts as a charged punch
+	ChargeHeatMult = 2.6,
+	ChargeKnockMult = 2.3,
+	ChargeRangeBonus = 2,
+	ChargeWalkMult = 0.5,
+	ShockwaveRadius = 12,
+	ShockwavePower = 0.6,
+	DashCooldown = 2.0,
+	DashSpeed = 80,
+	DashDuration = 0.18,
+	AirDashLift = 14,
+	DashBumpRadius = 4.5,
+	DashBumpHeat = 5,
+	DashBumpKnock = 26,
+	HitstunDashLock = 0.15, -- can't dash-cancel a hit instantly
+	-- knockback curve (see Shared/Knockback)
+	HeatScale = 0.025,
+	VerticalRatio = 0.42,
+	VerticalBase = 10,
+	MaxKnockSpeed = 230,
+	TumbleBase = 0.3,
+	TumblePerSpeed = 1 / 220,
+	TumbleMax = 1.4,
+	MaxActionsPerSecond = 16, -- remote spam protection
+}
+
+Config.Events = {
+	LowGravity = 80,
+	DefaultGravity = 196.2,
+	MeteorInterval = { 0.9, 1.6 },
+	MeteorRadius = 10,
+	MeteorHeat = 14,
+	MeteorKnock = 46,
+	SweeperSpeed = { 0.9, 2.3 }, -- radians/sec, ramps up over the round
+	SweeperHeat = 10,
+	SweeperKnock = 42,
+	GustInterval = 8,
+	GustWarning = 1.6,
+	GustKnock = 40,
+}
+
+Config.Anims = {
+	-- Roblox-owned default R15 animations; usable in any experience.
+	Punch = "rbxassetid://522635514",
+	Charged = "rbxassetid://522638767",
+	Idle = "rbxassetid://507766388",
+	Walk = "rbxassetid://507777826",
+}
+
+Config.Sounds = {
+	-- Built-in engine sounds. Swap for your own uploaded audio any time.
+	Swing = "rbxasset://sounds/swordslash.wav",
+	ChargedSwing = "rbxasset://sounds/swordlunge.wav",
+	Hit = "rbxasset://sounds/collide.wav",
+	KO = "rbxasset://sounds/Launching rocket.wav",
+	Dash = "rbxasset://sounds/action_jump.mp3",
+	Pick = "rbxasset://sounds/electronicpingshort.wav",
+	Boom = "rbxasset://sounds/collide.wav",
+}
+
+return Config
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX00000004">
+				<Properties>
+					<string name="Name">Cosmetics</string>
+					<ProtectedString name="Source"><![CDATA[-- Visual identity helpers used by both server (tags, trails) and client (HUD).
+local Cosmetics = {}
+
+Cosmetics.RarityColors = {
+	Common = Color3.fromRGB(185, 196, 214),
+	Rare = Color3.fromRGB(70, 160, 255),
+	Legendary = Color3.fromRGB(255, 184, 40),
+}
+
+-- One trail per title tier (see Shared/Progression.Titles).
+Cosmetics.Trails = {
+	ColorSequence.new(Color3.fromRGB(255, 255, 255)),
+	ColorSequence.new(Color3.fromRGB(90, 230, 255)),
+	ColorSequence.new(Color3.fromRGB(140, 255, 90)),
+	ColorSequence.new(Color3.fromRGB(255, 150, 40), Color3.fromRGB(255, 70, 40)),
+	ColorSequence.new(Color3.fromRGB(255, 80, 220), Color3.fromRGB(120, 80, 255)),
+	ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 70)),
+		ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 220, 60)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 255, 120)),
+		ColorSequenceKeypoint.new(0.75, Color3.fromRGB(70, 160, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 90, 255)),
+	}),
+}
+
+local HEAT_STOPS = {
+	{ 0, Color3.fromRGB(255, 255, 255) },
+	{ 50, Color3.fromRGB(255, 228, 92) },
+	{ 100, Color3.fromRGB(255, 140, 40) },
+	{ 150, Color3.fromRGB(255, 50, 50) },
+	{ 220, Color3.fromRGB(190, 20, 60) },
+}
+
+function Cosmetics.HeatColor(heat: number): Color3
+	if heat <= HEAT_STOPS[1][1] then
+		return HEAT_STOPS[1][2]
+	end
+	for i = 2, #HEAT_STOPS do
+		local prev, nextStop = HEAT_STOPS[i - 1], HEAT_STOPS[i]
+		if heat <= nextStop[1] then
+			local alpha = (heat - prev[1]) / (nextStop[1] - prev[1])
+			return (prev[2] :: Color3):Lerp(nextStop[2] :: Color3, alpha)
+		end
+	end
+	return HEAT_STOPS[#HEAT_STOPS][2]
+end
+
+function Cosmetics.TrailFor(tier: number): ColorSequence
+	return Cosmetics.Trails[math.clamp(tier, 1, #Cosmetics.Trails)]
+end
+
+return Cosmetics
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX00000005">
+				<Properties>
+					<string name="Name">Draft</string>
+					<ProtectedString name="Source"><![CDATA[--!strict
+-- Roguelike card draft: weighted rarity rolls with catch-up "luck" for players who placed low.
+local Draft = {}
+
+type PerkLike = { Id: string, Rarity: string, MaxStacks: number }
+type RNG = { NextNumber: (any) -> number }
+
+local ORDER = { "Common", "Rare", "Legendary" }
+
+function Draft.Weights(luck: number): { [string]: number }
+	luck = math.clamp(luck, 0, 1)
+	return {
+		Common = 70 - 40 * luck,
+		Rare = 25 + 22 * luck,
+		Legendary = 5 + 18 * luck,
+	}
+end
+
+-- Returns up to `count` distinct perks from `pool`, skipping perks already at max stacks.
+function Draft.Roll(pool: { PerkLike }, owned: { [string]: number }, count: number, luck: number, rng: RNG): { PerkLike }
+	local weights = Draft.Weights(luck)
+	local buckets: { [string]: { PerkLike } } = {}
+	for _, def in pool do
+		if (owned[def.Id] or 0) < def.MaxStacks and weights[def.Rarity] then
+			local bucket = buckets[def.Rarity]
+			if not bucket then
+				bucket = {}
+				buckets[def.Rarity] = bucket
+			end
+			table.insert(bucket, def)
+		end
+	end
+
+	local picks = {}
+	for _ = 1, count do
+		local total = 0
+		local lastNonEmpty: string? = nil
+		for _, rarity in ORDER do
+			local bucket = buckets[rarity]
+			if bucket and #bucket > 0 then
+				total += weights[rarity]
+				lastNonEmpty = rarity
+			end
+		end
+		if total <= 0 or not lastNonEmpty then
+			break
+		end
+
+		local roll = rng:NextNumber() * total
+		local chosen: string = lastNonEmpty
+		for _, rarity in ORDER do
+			local bucket = buckets[rarity]
+			if bucket and #bucket > 0 then
+				roll -= weights[rarity]
+				if roll < 0 then
+					chosen = rarity
+					break
+				end
+			end
+		end
+
+		local bucket = buckets[chosen]
+		local index = math.clamp(math.floor(rng:NextNumber() * #bucket) + 1, 1, #bucket)
+		table.insert(picks, (table.remove(bucket, index) :: any) :: PerkLike)
+	end
+	return picks
+end
+
+return Draft
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX00000006">
+				<Properties>
+					<string name="Name">Knockback</string>
+					<ProtectedString name="Source"><![CDATA[--!strict
+-- Pure knockback math (no Roblox APIs) so it can be unit tested outside Studio.
+local Knockback = {}
+
+export type Tuning = {
+	HeatScale: number,
+	VerticalRatio: number,
+	VerticalBase: number,
+	MaxKnockSpeed: number,
+	TumbleBase: number,
+	TumblePerSpeed: number,
+	TumbleMax: number,
+}
+
+-- Horizontal launch speed in studs/sec. Heat makes everything hit harder.
+function Knockback.Speed(base: number, heat: number, dealtMult: number, takenMult: number, tuning: Tuning): number
+	local raw = base * dealtMult * takenMult * (1 + math.max(heat, 0) * tuning.HeatScale)
+	return math.clamp(raw, 0, tuning.MaxKnockSpeed)
+end
+
+-- Upward speed paired with a horizontal launch so victims actually leave the ground.
+function Knockback.Vertical(speed: number, tuning: Tuning): number
+	return speed * tuning.VerticalRatio + tuning.VerticalBase
+end
+
+-- How long the victim tumbles (loses control) after a launch.
+function Knockback.Tumble(speed: number, tuning: Tuning): number
+	return math.min(tuning.TumbleBase + speed * tuning.TumblePerSpeed, tuning.TumbleMax)
+end
+
+-- Ballistic horizontal distance on flat ground, ignoring friction. Used for tuning and tests.
+function Knockback.FlightDistance(speed: number, tuning: Tuning, gravity: number): number
+	local vy = Knockback.Vertical(speed, tuning)
+	return speed * (2 * vy / gravity)
+end
+
+-- 1 = cool, 2 = warm, 3 = hot, 4 = critical
+function Knockback.HeatTier(heat: number): number
+	if heat >= 150 then
+		return 4
+	elseif heat >= 100 then
+		return 3
+	elseif heat >= 50 then
+		return 2
+	end
+	return 1
+end
+
+return Knockback
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX00000007">
+				<Properties>
+					<string name="Name">Movement</string>
+					<ProtectedString name="Source"><![CDATA[-- Physical movement shared by clients (their own character) and the server (bots).
+-- Whoever owns a character's physics must be the one to move it, so both sides use this.
+local Movement = {}
+
+local tumbleTokens: { [Humanoid]: number } = setmetatable({}, { __mode = "k" }) :: any
+local random = Random.new()
+
+local function nextToken(humanoid: Humanoid): number
+	local token = (tumbleTokens[humanoid] or 0) + 1
+	tumbleTokens[humanoid] = token
+	return token
+end
+
+function Movement.Recover(humanoid: Humanoid)
+	if humanoid.Parent and humanoid.Health > 0 then
+		humanoid.PlatformStand = false
+		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+	end
+end
+
+function Movement.IsTumbling(humanoid: Humanoid): boolean
+	return humanoid.PlatformStand
+end
+
+function Movement.CancelTumble(humanoid: Humanoid)
+	nextToken(humanoid)
+	if humanoid.PlatformStand then
+		Movement.Recover(humanoid)
+	end
+end
+
+-- Launch a character. `tumble` seconds of ragdoll-ish loss of control; 0 just sets velocity.
+function Movement.Knockback(humanoid: Humanoid, root: BasePart, velocity: Vector3, tumble: number)
+	if not humanoid.Parent or not root.Parent then
+		return
+	end
+	local token = nextToken(humanoid)
+	if tumble > 0 then
+		humanoid.PlatformStand = true
+	end
+	root.AssemblyLinearVelocity = velocity
+	if tumble > 0 and velocity.Magnitude > 1 then
+		local spin = math.clamp(velocity.Magnitude / 60, 0.3, 2)
+		root.AssemblyAngularVelocity = Vector3.new(
+			random:NextNumber(-8, 8),
+			random:NextNumber(-4, 4),
+			random:NextNumber(-8, 8)
+		) * spin
+	end
+	if tumble > 0 then
+		task.delay(tumble, function()
+			if tumbleTokens[humanoid] == token then
+				Movement.Recover(humanoid)
+			end
+		end)
+	end
+end
+
+export type DashTuning = { DashSpeed: number, DashDuration: number, AirDashLift: number }
+
+-- Short, snappy burst. Cancels tumble so it doubles as a recovery move.
+function Movement.Dash(humanoid: Humanoid, root: BasePart, direction: Vector3, tuning: DashTuning)
+	if not humanoid.Parent or not root.Parent then
+		return
+	end
+	Movement.CancelTumble(humanoid)
+	local airborne = humanoid.FloorMaterial == Enum.Material.Air
+
+	local old = root:FindFirstChild("DashVelocity")
+	if old then
+		old:Destroy()
+	end
+	local attachment = root:FindFirstChild("DashAttachment") :: Attachment?
+	if not attachment then
+		local created = Instance.new("Attachment")
+		created.Name = "DashAttachment"
+		created.Parent = root
+		attachment = created
+	end
+
+	local mover = Instance.new("LinearVelocity")
+	mover.Name = "DashVelocity"
+	mover.Attachment0 = attachment
+	mover.RelativeTo = Enum.ActuatorRelativeTo.World
+	mover.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+	mover.MaxForce = math.huge
+	mover.VectorVelocity = direction * tuning.DashSpeed + Vector3.new(0, if airborne then tuning.AirDashLift else 0, 0)
+	mover.Parent = root
+
+	task.delay(tuning.DashDuration, function()
+		if mover.Parent then
+			mover:Destroy()
+		end
+	end)
+end
+
+return Movement
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX00000008">
+				<Properties>
+					<string name="Name">Net</string>
+					<ProtectedString name="Source"><![CDATA[-- Single source of truth for remotes. The server creates them; clients wait for them.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Net = {}
+
+local REMOTE_NAMES = {
+	-- client -> server
+	"ChargeStart",
+	"Punch",
+	"Dash",
+	"DraftPick",
+	-- server -> client
+	"Knockback",
+	"Effect",
+	"Announce",
+	"KillFeed",
+	"DraftOffer",
+	"DraftClose",
+	"MatchResults",
+}
+
+local IS_SERVER = RunService:IsServer()
+local remoteFolder: Folder? = nil
+
+local function getFolder(): Folder
+	if remoteFolder then
+		return remoteFolder
+	end
+	if IS_SERVER then
+		local folder = ReplicatedStorage:FindFirstChild("Remotes")
+		if not folder then
+			folder = Instance.new("Folder")
+			folder.Name = "Remotes"
+			folder.Parent = ReplicatedStorage
+		end
+		for _, name in REMOTE_NAMES do
+			if not folder:FindFirstChild(name) then
+				local remote = Instance.new("RemoteEvent")
+				remote.Name = name
+				remote.Parent = folder
+			end
+		end
+		remoteFolder = folder
+	else
+		remoteFolder = ReplicatedStorage:WaitForChild("Remotes") :: Folder
+	end
+	return remoteFolder :: Folder
+end
+
+function Net.Event(name: string): RemoteEvent
+	assert(table.find(REMOTE_NAMES, name), "Unknown remote: " .. tostring(name))
+	local folder = getFolder()
+	if IS_SERVER then
+		return folder:FindFirstChild(name) :: RemoteEvent
+	end
+	return folder:WaitForChild(name) :: RemoteEvent
+end
+
+-- Replicated folder whose attributes describe the current match state (late-join safe).
+function Net.GameState(): Folder
+	if IS_SERVER then
+		local state = ReplicatedStorage:FindFirstChild("GameState")
+		if not state then
+			state = Instance.new("Folder")
+			state.Name = "GameState"
+			state.Parent = ReplicatedStorage
+		end
+		return state :: Folder
+	end
+	return ReplicatedStorage:WaitForChild("GameState") :: Folder
+end
+
+return Net
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX00000009">
+				<Properties>
+					<string name="Name">Perks</string>
+					<ProtectedString name="Source"><![CDATA[--!strict
+-- Perk definitions and stat aggregation. Pure Luau so it is unit-testable.
+local Perks = {}
+
+export type Stats = {
+	KnockDealt: number,
+	KnockTaken: number,
+	HeatDealt: number,
+	HeatTaken: number,
+	WalkSpeed: number,
+	JumpPower: number,
+	PunchCooldownMult: number,
+	DashCooldownMult: number,
+	DashCharges: number,
+	LifeSteal: number,
+	ExtraLives: number,
+	ChargeSpeed: number,
+	BumpMult: number,
+	Thorns: number,
+	Shockwave: number,
+	Scale: number,
+}
+
+export type PerkDef = {
+	Id: string,
+	Name: string,
+	Rarity: string,
+	MaxStacks: number,
+	UnlockLevel: number,
+	Description: string,
+	Apply: (Stats) -> (),
+}
+
+Perks.RarityOrder = { "Common", "Rare", "Legendary" }
+
+function Perks.BaseStats(): Stats
+	return {
+		KnockDealt = 1,
+		KnockTaken = 1,
+		HeatDealt = 1,
+		HeatTaken = 1,
+		WalkSpeed = 16,
+		JumpPower = 50,
+		PunchCooldownMult = 1,
+		DashCooldownMult = 1,
+		DashCharges = 1,
+		LifeSteal = 0,
+		ExtraLives = 0,
+		ChargeSpeed = 1,
+		BumpMult = 1,
+		Thorns = 0,
+		Shockwave = 0,
+		Scale = 1,
+	}
+end
+
+local function perk(id: string, name: string, rarity: string, maxStacks: number, unlockLevel: number, description: string, apply: (Stats) -> ()): PerkDef
+	return {
+		Id = id,
+		Name = name,
+		Rarity = rarity,
+		MaxStacks = maxStacks,
+		UnlockLevel = unlockLevel,
+		Description = description,
+		Apply = apply,
+	}
+end
+
+Perks.List = {
+	-- Common
+	perk("rocket_fist", "Rocket Fist", "Common", 5, 1, "+15% knockback dealt.", function(s)
+		s.KnockDealt += 0.15
+	end),
+	perk("heavyweight", "Heavyweight", "Common", 4, 1, "-12% knockback taken, slightly slower.", function(s)
+		s.KnockTaken -= 0.12
+		s.WalkSpeed -= 1
+	end),
+	perk("turbo_sneakers", "Turbo Sneakers", "Common", 4, 1, "+2.5 walk speed.", function(s)
+		s.WalkSpeed += 2.5
+	end),
+	perk("quick_jab", "Quick Jab", "Common", 3, 1, "Punch cooldown -15%.", function(s)
+		s.PunchCooldownMult -= 0.15
+	end),
+	perk("spring_legs", "Spring Legs", "Common", 3, 1, "+10 jump power.", function(s)
+		s.JumpPower += 10
+	end),
+	perk("second_gear", "Second Gear", "Common", 3, 1, "Dash cooldown -20%.", function(s)
+		s.DashCooldownMult -= 0.2
+	end),
+	perk("thick_skin", "Thick Skin", "Common", 4, 1, "Take 15% less heat.", function(s)
+		s.HeatTaken -= 0.15
+	end),
+	perk("spicy_knuckles", "Spicy Knuckles", "Common", 4, 1, "Deal 20% more heat.", function(s)
+		s.HeatDealt += 0.2
+	end),
+	-- Rare
+	perk("double_dash", "Double Dash", "Rare", 2, 1, "+1 dash charge. Recover like a pro.", function(s)
+		s.DashCharges += 1
+	end),
+	perk("vampire_fist", "Vampire Fist", "Rare", 3, 1, "Every hit cools your own heat by 4%.", function(s)
+		s.LifeSteal += 4
+	end),
+	perk("spiked_armor", "Spiked Armor", "Rare", 2, 2, "Attackers take 35% of the heat they deal you.", function(s)
+		s.Thorns += 0.35
+	end),
+	perk("bumper_car", "Bumper Car", "Rare", 2, 2, "Dash bumps hit twice as hard.", function(s)
+		s.BumpMult += 1
+	end),
+	perk("overcharger", "Overcharger", "Rare", 2, 4, "Charge punches 40% faster.", function(s)
+		s.ChargeSpeed += 0.4
+	end),
+	-- Legendary
+	perk("second_wind", "Second Wind", "Legendary", 2, 1, "Once per round, the void spits you back out.", function(s)
+		s.ExtraLives += 1
+	end),
+	perk("glass_cannon", "Glass Cannon", "Legendary", 2, 3, "+50% knockback dealt, +35% knockback taken.", function(s)
+		s.KnockDealt += 0.5
+		s.KnockTaken += 0.35
+	end),
+	perk("titan", "Titan", "Legendary", 2, 5, "Grow 20% bigger. Harder to move, hits harder, a bit slower.", function(s)
+		s.Scale += 0.2
+		s.KnockTaken -= 0.2
+		s.KnockDealt += 0.1
+		s.WalkSpeed -= 1.5
+	end),
+	perk("shockwave_fist", "Shockwave Fist", "Legendary", 1, 7, "Charged punches blast EVERYONE around you.", function(s)
+		s.Shockwave += 1
+	end),
+}
+
+Perks.ById = {} :: { [string]: PerkDef }
+for _, def in Perks.List do
+	Perks.ById[def.Id] = def
+end
+
+-- Builds final stats from an owned-perk map { [perkId] = stacks }. Order is deterministic.
+function Perks.Compute(owned: { [string]: number }): Stats
+	local stats = Perks.BaseStats()
+	for _, def in Perks.List do
+		local stacks = math.min(owned[def.Id] or 0, def.MaxStacks)
+		for _ = 1, stacks do
+			def.Apply(stats)
+		end
+	end
+	stats.KnockTaken = math.max(stats.KnockTaken, 0.4)
+	stats.HeatTaken = math.max(stats.HeatTaken, 0.4)
+	stats.WalkSpeed = math.max(stats.WalkSpeed, 10)
+	stats.PunchCooldownMult = math.max(stats.PunchCooldownMult, 0.45)
+	stats.DashCooldownMult = math.max(stats.DashCooldownMult, 0.35)
+	stats.DashCharges = math.floor(stats.DashCharges)
+	return stats
+end
+
+-- Perks a player of the given level can be offered.
+function Perks.Pool(level: number): { PerkDef }
+	local pool = {}
+	for _, def in Perks.List do
+		if def.UnlockLevel <= level then
+			table.insert(pool, def)
+		end
+	end
+	return pool
+end
+
+return Perks
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX0000000A">
+				<Properties>
+					<string name="Name">Progression</string>
+					<ProtectedString name="Source"><![CDATA[--!strict
+-- Persistent progression math: levels, titles and match XP. Pure Luau.
+local Progression = {}
+
+Progression.MaxLevel = 100
+
+Progression.Titles = {
+	{ Level = 1, Name = "Rookie" },
+	{ Level = 3, Name = "Brawler" },
+	{ Level = 5, Name = "Bruiser" },
+	{ Level = 8, Name = "Launcher" },
+	{ Level = 12, Name = "Yeetmaster" },
+	{ Level = 20, Name = "Living Legend" },
+}
+
+-- XP needed to advance from `level` to `level + 1`.
+function Progression.XPForLevel(level: number): number
+	return 100 + (level - 1) * 60
+end
+
+-- Returns level, xp into the current level, xp needed for the next level.
+function Progression.FromXP(totalXP: number): (number, number, number)
+	local level = 1
+	local remaining = math.max(0, math.floor(totalXP))
+	while level < Progression.MaxLevel and remaining >= Progression.XPForLevel(level) do
+		remaining -= Progression.XPForLevel(level)
+		level += 1
+	end
+	return level, remaining, Progression.XPForLevel(level)
+end
+
+-- Returns tier index (1-based, also used for trail colours) and title name.
+function Progression.TitleFor(level: number): (number, string)
+	local tier, name = 1, Progression.Titles[1].Name
+	for index, entry in Progression.Titles do
+		if level >= entry.Level then
+			tier, name = index, entry.Name
+		end
+	end
+	return tier, name
+end
+
+export type MatchResult = {
+	Points: number,
+	KOs: number,
+	Placement: number,
+	Won: boolean,
+	DailyBonus: boolean,
+}
+
+function Progression.MatchXP(result: MatchResult): (number, { string })
+	local breakdown = {}
+	local xp = 25
+	table.insert(breakdown, "Played a match +25")
+	if result.Points > 0 then
+		xp += result.Points * 12
+		table.insert(breakdown, string.format("%d points +%d", result.Points, result.Points * 12))
+	end
+	if result.KOs > 0 then
+		xp += result.KOs * 5
+		table.insert(breakdown, string.format("%d KOs +%d", result.KOs, result.KOs * 5))
+	end
+	if result.Won then
+		xp += 75
+		table.insert(breakdown, "Champion +75")
+	elseif result.Placement == 2 then
+		xp += 35
+		table.insert(breakdown, "2nd place +35")
+	elseif result.Placement == 3 then
+		xp += 20
+		table.insert(breakdown, "3rd place +20")
+	end
+	if result.Won and result.DailyBonus then
+		xp *= 2
+		table.insert(breakdown, "First win of the day x2")
+	end
+	return math.floor(xp), breakdown
+end
+
+return Progression
+]]></ProtectedString>
+				</Properties>
+			</Item>
+		</Item>
+	</Item>
+	<Item class="ServerScriptService" referent="RBX0000000B">
+		<Properties>
+			<string name="Name">ServerScriptService</string>
+		</Properties>
+		<Item class="Script" referent="RBX0000000C">
+			<Properties>
+				<string name="Name">Server</string>
+				<ProtectedString name="Source"><![CDATA[-- LAUNCH PARTY server bootstrap. Order matters: world -> data -> systems -> match loop.
+local Services = script:WaitForChild("Services")
+
+local ArenaService = require(Services.ArenaService)
+local BotService = require(Services.BotService)
+local CombatService = require(Services.CombatService)
+local DataService = require(Services.DataService)
+local DraftService = require(Services.DraftService)
+local RoundService = require(Services.RoundService)
+
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+
+ArenaService.SetupWorld()
+DataService.Init()
+CombatService.Init()
+BotService.Init()
+DraftService.Init()
+RoundService.Init()
+
+-- Practice dummies in the lobby so there's always something to launch.
+local lobby = Config.Lobby.Center
+BotService.CreateDummy(CFrame.new(lobby + Vector3.new(-20, 4, -6)) * CFrame.Angles(0, math.rad(180), 0))
+BotService.CreateDummy(CFrame.new(lobby + Vector3.new(20, 4, -6)) * CFrame.Angles(0, math.rad(180), 0))
+
+RoundService.Start()
+print("[LaunchParty] Server ready.")
+]]></ProtectedString>
+			</Properties>
+			<Item class="Folder" referent="RBX0000000D">
+				<Properties>
+					<string name="Name">Services</string>
+				</Properties>
+				<Item class="ModuleScript" referent="RBX0000000E">
+					<Properties>
+						<string name="Name">ArenaService</string>
+						<ProtectedString name="Source"><![CDATA[-- Builds the world: lighting, the spectator lobby and a fresh floating-island arena every round.
+local Debris = game:GetService("Debris")
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local ArenaService = {}
+
+local ARENA = Config.Arena
+local LOBBY = Config.Lobby
+
+local GRASS_A = Color3.fromRGB(116, 206, 92)
+local GRASS_B = Color3.fromRGB(98, 186, 80)
+local DIRT = Color3.fromRGB(126, 88, 62)
+local WARN = Color3.fromRGB(255, 96, 64)
+local ICE = Color3.fromRGB(190, 230, 255)
+
+type Tile = {
+	Model: Model,
+	Top: BasePart,
+	Position: Vector3, -- centre of the tile's top surface
+	Dist: number, -- flat distance from arena centre
+	Alive: boolean,
+}
+
+local arenaFolder: Folder? = nil
+local tiles: { Tile } = {}
+local rng = Random.new()
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Include
+
+local function makePart(props: { [string]: any }): Part
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	local parent = props.Parent
+	for key, value in props do
+		if key ~= "Parent" then
+			(part :: any)[key] = value
+		end
+	end
+	if parent then
+		part.Parent = parent
+	end
+	return part
+end
+
+local function makeSign(part: BasePart, face: Enum.NormalId, lines: { { Text: string, Size: number, Color: Color3 } })
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = face
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 20
+	gui.LightInfluence = 0
+	gui.Parent = part
+
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Vertical
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.Padding = UDim.new(0, 6)
+	layout.Parent = gui
+
+	for index, line in lines do
+		local label = Instance.new("TextLabel")
+		label.LayoutOrder = index
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.new(0.94, 0, line.Size, 0)
+		label.Font = if index == 1 then Enum.Font.FredokaOne else Enum.Font.GothamBold
+		label.TextScaled = true
+		label.TextColor3 = line.Color
+		label.TextStrokeTransparency = 0.3
+		label.Text = line.Text
+		label.Parent = gui
+	end
+end
+
+-- Arena shapes: predicates over flat offsets from the centre.
+local SHAPES: { [string]: (number, number, number) -> boolean } = {
+	Disc = function(x, z, r)
+		return x * x + z * z <= r * r
+	end,
+	Cross = function(x, z, r)
+		local width = r * 0.36
+		return (math.abs(x) <= width or math.abs(z) <= width) and math.max(math.abs(x), math.abs(z)) <= r
+	end,
+	Donut = function(x, z, r)
+		local d = math.sqrt(x * x + z * z)
+		return d <= r and d >= r * 0.32
+	end,
+	Twin = function(x, z, r)
+		local islandR = r * 0.48
+		local left, right = x + r * 0.5, x - r * 0.5
+		return left * left + z * z <= islandR * islandR
+			or right * right + z * z <= islandR * islandR
+			or (math.abs(z) <= 4 and math.abs(x) <= r * 0.5)
+	end,
+}
+
+ArenaService.ShapeNames = { "Disc", "Cross", "Donut", "Twin" }
+ArenaService.ShapeTitles = {
+	Disc = "The Disc",
+	Cross = "Crossroads",
+	Donut = "Donut Hole",
+	Twin = "Twin Isles",
+}
+
+local function setupLighting()
+	Lighting.ClockTime = 14.5
+	Lighting.Brightness = 2.2
+	Lighting.Ambient = Color3.fromRGB(95, 95, 115)
+	Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 172)
+	Lighting.GlobalShadows = true
+
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
+	atmosphere.Density = 0.32
+	atmosphere.Offset = 0.15
+	atmosphere.Color = Color3.fromRGB(198, 220, 255)
+	atmosphere.Decay = Color3.fromRGB(110, 150, 210)
+	atmosphere.Glare = 0.2
+	atmosphere.Haze = 1.2
+	atmosphere.Parent = Lighting
+
+	if not Lighting:FindFirstChild("LP_Bloom") then
+		local bloom = Instance.new("BloomEffect")
+		bloom.Name = "LP_Bloom"
+		bloom.Intensity = 0.6
+		bloom.Size = 24
+		bloom.Threshold = 1.6
+		bloom.Parent = Lighting
+	end
+	if not Lighting:FindFirstChild("LP_Color") then
+		local color = Instance.new("ColorCorrectionEffect")
+		color.Name = "LP_Color"
+		color.Saturation = 0.15
+		color.Contrast = 0.05
+		color.Parent = Lighting
+	end
+end
+
+local function buildScenery()
+	local folder = Instance.new("Folder")
+	folder.Name = "Scenery"
+
+	-- A cloud sea far below the arena so the void reads as "very, very far down".
+	makePart({
+		Name = "CloudSea",
+		Size = Vector3.new(2048, 1, 2048),
+		CFrame = CFrame.new(ARENA.Center - Vector3.new(0, 70, 0)),
+		Color = Color3.fromRGB(245, 248, 255),
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.25,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		CastShadow = false,
+		Parent = folder,
+	})
+
+	-- Distant floating islands for depth.
+	for i = 1, 9 do
+		local angle = (i / 9) * math.pi * 2 + rng:NextNumber(-0.25, 0.25)
+		local distance = rng:NextNumber(115, 190)
+		local width = rng:NextNumber(10, 24)
+		local base = ARENA.Center + Vector3.new(math.cos(angle) * distance, rng:NextNumber(-30, 35), math.sin(angle) * distance)
+		makePart({
+			Name = "IslandTop",
+			Size = Vector3.new(width, 3, width * rng:NextNumber(0.7, 1.2)),
+			CFrame = CFrame.new(base) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0),
+			Color = GRASS_A,
+			Material = Enum.Material.Grass,
+			Parent = folder,
+		})
+		makePart({
+			Name = "IslandRock",
+			Size = Vector3.new(width * 0.7, width * 0.6, width * 0.7),
+			CFrame = CFrame.new(base - Vector3.new(0, 1.5 + width * 0.3, 0)) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0),
+			Color = DIRT,
+			Material = Enum.Material.Rock,
+			Parent = folder,
+		})
+		if rng:NextNumber() < 0.7 then
+			local trunkHeight = rng:NextNumber(5, 9)
+			makePart({
+				Name = "Trunk",
+				Size = Vector3.new(1.4, trunkHeight, 1.4),
+				CFrame = CFrame.new(base + Vector3.new(0, 1.5 + trunkHeight / 2, 0)),
+				Color = Color3.fromRGB(110, 76, 50),
+				Material = Enum.Material.Wood,
+				Parent = folder,
+			})
+			makePart({
+				Name = "Leaves",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.one * rng:NextNumber(6, 9),
+				CFrame = CFrame.new(base + Vector3.new(0, 1.5 + trunkHeight + 1.5, 0)),
+				Color = Color3.fromRGB(70, 170, 80),
+				Material = Enum.Material.Grass,
+				Parent = folder,
+			})
+		end
+	end
+
+	folder.Parent = Workspace
+end
+
+local function buildLobby()
+	local folder = Instance.new("Folder")
+	folder.Name = "Lobby"
+	local c = LOBBY.Center
+	local size = LOBBY.Size
+	local halfX, halfZ = size.X / 2, size.Z / 2
+
+	makePart({
+		Name = "Floor",
+		Size = size,
+		CFrame = CFrame.new(c - Vector3.new(0, size.Y / 2, 0)),
+		Color = Color3.fromRGB(58, 62, 84),
+		Material = Enum.Material.Slate,
+		Parent = folder,
+	})
+	-- Neon trim along the balcony edge facing the arena.
+	makePart({
+		Name = "Trim",
+		Size = Vector3.new(size.X, 0.3, 1),
+		CFrame = CFrame.new(c.X, c.Y + 0.05, c.Z - halfZ + 0.5),
+		Color = Color3.fromRGB(255, 200, 60),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = folder,
+	})
+	makePart({
+		Name = "BalconyGlass",
+		Size = Vector3.new(size.X, 3.5, 0.5),
+		CFrame = CFrame.new(c.X, c.Y + 1.75, c.Z - halfZ),
+		Color = Color3.fromRGB(170, 220, 255),
+		Material = Enum.Material.Glass,
+		Transparency = 0.55,
+		Parent = folder,
+	})
+
+	-- Invisible walls so nobody can leave the lobby (or get launched out of it).
+	local wallHeight = 45
+	local walls = {
+		{ Vector3.new(size.X, wallHeight, 1), Vector3.new(0, wallHeight / 2, -halfZ - 0.5) },
+		{ Vector3.new(size.X, wallHeight, 1), Vector3.new(0, wallHeight / 2, halfZ + 0.5) },
+		{ Vector3.new(1, wallHeight, size.Z), Vector3.new(-halfX - 0.5, wallHeight / 2, 0) },
+		{ Vector3.new(1, wallHeight, size.Z), Vector3.new(halfX + 0.5, wallHeight / 2, 0) },
+		{ Vector3.new(size.X, 1, size.Z), Vector3.new(0, wallHeight, 0) },
+	}
+	for index, wall in walls do
+		makePart({
+			Name = "Barrier" .. index,
+			Size = wall[1],
+			CFrame = CFrame.new(c + wall[2]),
+			Transparency = 1,
+			CanQuery = false,
+			CastShadow = false,
+			Parent = folder,
+		})
+	end
+
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "LobbySpawn"
+	spawn.Anchored = true
+	spawn.Neutral = true
+	spawn.Duration = 0
+	spawn.Size = Vector3.new(14, 1, 14)
+	spawn.CFrame = CFrame.new(c + Vector3.new(0, 0.5, 9)) -- default orientation faces -Z, toward the arena
+	spawn.Color = Color3.fromRGB(255, 200, 60)
+	spawn.Material = Enum.Material.SmoothPlastic
+	spawn.TopSurface = Enum.SurfaceType.Smooth
+	spawn.Parent = folder
+
+	local title = makePart({
+		Name = "TitleSign",
+		Size = Vector3.new(60, 18, 1),
+		CFrame = CFrame.new(c.X, c.Y + 13, c.Z + halfZ - 0.5),
+		Color = Color3.fromRGB(30, 32, 48),
+		Material = Enum.Material.SmoothPlastic,
+		Parent = folder,
+	})
+	makeSign(title, Enum.NormalId.Front, {
+		{ Text = Config.GameName, Size = 0.55, Color = Color3.fromRGB(255, 205, 60) },
+		{ Text = "Build heat. Launch friends. Don't be the one who falls.", Size = 0.16, Color = Color3.new(1, 1, 1) },
+	})
+
+	local howTo = makePart({
+		Name = "HowToBoard",
+		Size = Vector3.new(30, 16, 1),
+		CFrame = CFrame.new(c.X - halfX + 0.5, c.Y + 9, c.Z + 2) * CFrame.Angles(0, -math.pi / 2, 0),
+		Color = Color3.fromRGB(30, 32, 48),
+		Parent = folder,
+	})
+	makeSign(howTo, Enum.NormalId.Front, {
+		{ Text = "HOW TO PLAY", Size = 0.2, Color = Color3.fromRGB(90, 230, 255) },
+		{ Text = "CLICK to punch.  HOLD to charge a launcher.", Size = 0.1, Color = Color3.new(1, 1, 1) },
+		{ Text = "Q / SHIFT to dash. Works in mid-air!", Size = 0.1, Color = Color3.new(1, 1, 1) },
+		{ Text = "Hits raise HEAT. More heat = you fly further.", Size = 0.1, Color = Color3.fromRGB(255, 200, 80) },
+		{ Text = "Fall into the void and you're out.", Size = 0.1, Color = Color3.fromRGB(255, 120, 120) },
+		{ Text = "Last one standing wins the round.", Size = 0.1, Color = Color3.new(1, 1, 1) },
+	})
+
+	local draftBoard = makePart({
+		Name = "DraftBoard",
+		Size = Vector3.new(30, 16, 1),
+		CFrame = CFrame.new(c.X + halfX - 0.5, c.Y + 9, c.Z + 2) * CFrame.Angles(0, math.pi / 2, 0),
+		Color = Color3.fromRGB(30, 32, 48),
+		Parent = folder,
+	})
+	makeSign(draftBoard, Enum.NormalId.Front, {
+		{ Text = "THE DRAFT", Size = 0.2, Color = Color3.fromRGB(255, 184, 40) },
+		{ Text = "After each round, pick 1 of 3 perks. They stack!", Size = 0.1, Color = Color3.new(1, 1, 1) },
+		{ Text = "Placed low? You get luckier cards.", Size = 0.1, Color = Color3.new(1, 1, 1) },
+		{ Text = "The leader wears the crown. KO them for a bounty.", Size = 0.1, Color = Color3.fromRGB(255, 220, 90) },
+		{ Text = "Level up to unlock new perks, titles & trails.", Size = 0.1, Color = Color3.fromRGB(140, 255, 90) },
+		{ Text = "Punch the dummies while you wait!", Size = 0.1, Color = Color3.new(1, 1, 1) },
+	})
+
+	folder.Parent = Workspace
+end
+
+function ArenaService.SetupWorld()
+	setupLighting()
+	buildScenery()
+	buildLobby()
+	Workspace.Gravity = Config.Events.DefaultGravity
+end
+
+function ArenaService.Clear()
+	if arenaFolder then
+		arenaFolder:Destroy()
+		arenaFolder = nil
+	end
+	table.clear(tiles)
+end
+
+function ArenaService.Build(shapeName: string)
+	ArenaService.Clear()
+	local shape = SHAPES[shapeName] or SHAPES.Disc
+	local folder = Instance.new("Folder")
+	folder.Name = "Arena"
+	rayParams.FilterDescendantsInstances = { folder }
+
+	local tileSize = ARENA.TileSize
+	local n = math.ceil(ARENA.Radius / tileSize)
+	local center = ARENA.Center
+
+	for gx = -n, n do
+		for gz = -n, n do
+			local x, z = gx * tileSize, gz * tileSize
+			if shape(x, z, ARENA.Radius) then
+				local model = Instance.new("Model")
+				model.Name = "Tile"
+				local top = makePart({
+					Name = "Top",
+					Size = Vector3.new(tileSize, 1.4, tileSize),
+					CFrame = CFrame.new(center + Vector3.new(x, -0.7, z)),
+					Color = if (gx + gz) % 2 == 0 then GRASS_A else GRASS_B,
+					Material = Enum.Material.Grass,
+					Parent = model,
+				})
+				local depth = 3 + rng:NextNumber() * 4
+				local dirt = makePart({
+					Name = "Dirt",
+					Anchored = false,
+					Massless = true,
+					Size = Vector3.new(tileSize - 0.5, depth, tileSize - 0.5),
+					CFrame = CFrame.new(center + Vector3.new(x, -1.4 - depth / 2, z)),
+					Color = DIRT:Lerp(Color3.new(0, 0, 0), rng:NextNumber() * 0.15),
+					Material = Enum.Material.Ground,
+					Parent = model,
+				})
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = top
+				weld.Part1 = dirt
+				weld.Parent = top
+				model.PrimaryPart = top
+				model.Parent = folder
+
+				table.insert(tiles, {
+					Model = model,
+					Top = top,
+					Position = center + Vector3.new(x, 0, z),
+					Dist = math.sqrt(x * x + z * z),
+					Alive = true,
+				})
+			end
+		end
+	end
+
+	folder.Parent = Workspace
+	arenaFolder = folder
+end
+
+function ArenaService.AliveTileCount(): number
+	local count = 0
+	for _, tile in tiles do
+		if tile.Alive then
+			count += 1
+		end
+	end
+	return count
+end
+
+-- Evenly spaced spawn points around the arena, all facing the centre.
+function ArenaService.GetSpawnCFrames(count: number): { CFrame }
+	local center = ARENA.Center
+	local used: { [Tile]: boolean } = {}
+	local result = {}
+	local ringRadius = ARENA.Radius * 0.55
+	local offset = rng:NextNumber() * math.pi * 2
+
+	for i = 1, count do
+		local angle = offset + (i - 1) / count * math.pi * 2
+		local target = center + Vector3.new(math.cos(angle) * ringRadius, 0, math.sin(angle) * ringRadius)
+		local best: Tile? = nil
+		local bestDist = math.huge
+		for _, tile in tiles do
+			if tile.Alive and not used[tile] then
+				local d = (tile.Position - target).Magnitude
+				if d < bestDist then
+					best, bestDist = tile, d
+				end
+			end
+		end
+		local position = center
+		if best then
+			used[best] = true
+			position = best.Position
+		end
+		local spawnPos = position + Vector3.new(0, 4, 0)
+		local lookAt = Vector3.new(center.X, spawnPos.Y, center.Z)
+		if (lookAt - spawnPos).Magnitude < 0.5 then
+			lookAt = spawnPos + Vector3.new(0, 0, -1)
+		end
+		table.insert(result, CFrame.lookAt(spawnPos, lookAt))
+	end
+	return result
+end
+
+-- The most central surviving tile; used by Second Wind.
+function ArenaService.GetSafeCFrame(): CFrame
+	local best: Tile? = nil
+	for _, tile in tiles do
+		if tile.Alive and (not best or tile.Dist < best.Dist) then
+			best = tile
+		end
+	end
+	local position = if best then best.Position else ARENA.Center
+	return CFrame.new(position + Vector3.new(0, 6, 0))
+end
+
+function ArenaService.RandomTilePosition(): Vector3?
+	local alive = {}
+	for _, tile in tiles do
+		if tile.Alive then
+			table.insert(alive, tile)
+		end
+	end
+	if #alive == 0 then
+		return nil
+	end
+	return alive[rng:NextInteger(1, #alive)].Position
+end
+
+-- True if there is solid, non-crumbling floor beneath `position`.
+function ArenaService.IsOverArena(position: Vector3): boolean
+	if not arenaFolder then
+		return false
+	end
+	local result = Workspace:Raycast(position + Vector3.new(0, 2, 0), Vector3.new(0, -60, 0), rayParams)
+	if not result then
+		return false
+	end
+	local model = result.Instance.Parent
+	return model ~= nil and model:IsA("Model") and not model:GetAttribute("Crumbling")
+end
+
+local function crumble(tile: Tile, warnTime: number)
+	if not tile.Alive then
+		return
+	end
+	tile.Alive = false
+	tile.Model:SetAttribute("Crumbling", true)
+	local top = tile.Top
+	TweenService:Create(top, TweenInfo.new(warnTime), { Color = WARN }):Play()
+
+	task.spawn(function()
+		local base = top.CFrame
+		local started = os.clock()
+		while top.Parent and os.clock() - started < warnTime do
+			local intensity = 0.05 + 0.2 * ((os.clock() - started) / warnTime)
+			top.CFrame = base
+				* CFrame.new(rng:NextNumber(-intensity, intensity), 0, rng:NextNumber(-intensity, intensity))
+			task.wait(0.05)
+		end
+		if top.Parent then
+			top.CFrame = base
+			top.Anchored = false
+			top.AssemblyLinearVelocity = Vector3.new(0, -6, 0)
+			top.AssemblyAngularVelocity = Vector3.new(rng:NextNumber(-1, 1), 0, rng:NextNumber(-1, 1))
+			Debris:AddItem(tile.Model, 5)
+		end
+	end)
+end
+
+-- Sudden death: drop the outermost ring of tiles. Returns false once the arena can't shrink further.
+function ArenaService.CrumbleStep(): boolean
+	local alive = {}
+	for _, tile in tiles do
+		if tile.Alive then
+			table.insert(alive, tile)
+		end
+	end
+	if #alive <= ARENA.MinTiles then
+		return false
+	end
+	table.sort(alive, function(a, b)
+		return a.Dist > b.Dist
+	end)
+	local cutoff = alive[1].Dist - ARENA.TileSize * 0.6
+	local maxRemove = #alive - ARENA.MinTiles
+	local removed = 0
+	for _, tile in alive do
+		if tile.Dist < cutoff or removed >= maxRemove then
+			break
+		end
+		crumble(tile, 1.4)
+		removed += 1
+	end
+	return removed > 0
+end
+
+-- Knock out tiles around an impact (meteors). Never drops below MinTiles.
+function ArenaService.BreakTilesNear(position: Vector3, radius: number)
+	local budget = ArenaService.AliveTileCount() - ARENA.MinTiles
+	for _, tile in tiles do
+		if budget <= 0 then
+			return
+		end
+		local offset = tile.Position - position
+		if tile.Alive and Vector3.new(offset.X, 0, offset.Z).Magnitude <= radius then
+			crumble(tile, 0.35)
+			budget -= 1
+		end
+	end
+end
+
+function ArenaService.SetIce(enabled: boolean)
+	for _, tile in tiles do
+		if tile.Alive and tile.Top.Parent then
+			if enabled then
+				tile.Top.Material = Enum.Material.Ice
+				tile.Top.Color = tile.Top.Color:Lerp(ICE, 0.75)
+				tile.Top.CustomPhysicalProperties = PhysicalProperties.new(0.9, 0, 0, 100, 1)
+			else
+				tile.Top.Material = Enum.Material.Grass
+				tile.Top.CustomPhysicalProperties = nil
+			end
+		end
+	end
+end
+
+function ArenaService.GetCenter(): Vector3
+	return ARENA.Center
+end
+
+function ArenaService.GetVoidY(): number
+	return ARENA.Center.Y - ARENA.VoidDepth
+end
+
+function ArenaService.GetLobbyVoidY(): number
+	return LOBBY.Center.Y - LOBBY.VoidDepth
+end
+
+function ArenaService.GetLobbySpawnCFrame(): CFrame
+	return CFrame.new(LOBBY.Center + Vector3.new(0, 4, 9))
+end
+
+return ArenaService
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX0000000F">
+					<Properties>
+						<string name="Name">BotService</string>
+						<ProtectedString name="Source"><![CDATA[-- Bots keep matches lively when the server is quiet, and dummies give the lobby something to punch.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage.Shared
+local Config = require(Shared.Config)
+
+local ArenaService = require(script.Parent.ArenaService)
+local CombatService = require(script.Parent.CombatService)
+local FighterService = require(script.Parent.FighterService)
+
+type Fighter = FighterService.Fighter
+
+local BotService = {}
+
+local BOT_NAMES = {
+	"Gary", "Bonkers", "Sir Yeetsalot", "Noodle", "Captain Wobble", "Meatball", "Turbo Toast",
+	"Lil' Launch", "Big Steve", "Pudding", "Chonk", "Wiggles", "Doomba", "Mr. Bounce", "Kevin",
+}
+
+local PALETTES = {
+	{ Color3.fromRGB(255, 120, 90), Color3.fromRGB(60, 70, 160) },
+	{ Color3.fromRGB(90, 200, 255), Color3.fromRGB(40, 40, 60) },
+	{ Color3.fromRGB(255, 210, 70), Color3.fromRGB(200, 60, 60) },
+	{ Color3.fromRGB(150, 255, 120), Color3.fromRGB(70, 50, 120) },
+	{ Color3.fromRGB(230, 120, 255), Color3.fromRGB(30, 120, 90) },
+	{ Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 90, 160) },
+}
+local SKIN = Color3.fromRGB(255, 214, 170)
+
+local rng = Random.new()
+local nextBotId = 0
+local bots: { Fighter } = {}
+local fighterFolder: Folder? = nil
+
+local function getFolder(): Folder
+	if fighterFolder and fighterFolder.Parent then
+		return fighterFolder
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = "Bots"
+	folder.Parent = Workspace
+	fighterFolder = folder
+	return folder
+end
+
+local function pickName(): string
+	local used = {}
+	for _, bot in bots do
+		used[bot.Name] = true
+	end
+	local options = {}
+	for _, name in BOT_NAMES do
+		if not used[name] then
+			table.insert(options, name)
+		end
+	end
+	if #options == 0 then
+		return "Bot " .. tostring(nextBotId)
+	end
+	return options[rng:NextInteger(1, #options)]
+end
+
+-- A minimal rig in case avatar loading fails (e.g. offline Studio). Not pretty, but playable.
+local function buildFallbackRig(shirt: Color3, pants: Color3): Model
+	local model = Instance.new("Model")
+	local function piece(name: string, size: Vector3, offset: Vector3, color: Color3, transparency: number?): Part
+		local part = Instance.new("Part")
+		part.Name = name
+		part.Size = size
+		part.Color = color
+		part.Transparency = transparency or 0
+		part.TopSurface = Enum.SurfaceType.Smooth
+		part.BottomSurface = Enum.SurfaceType.Smooth
+		part.CFrame = CFrame.new(offset)
+		part.Parent = model
+		return part
+	end
+	local root = piece("HumanoidRootPart", Vector3.new(2, 2, 1), Vector3.new(0, 0, 0), shirt, 1)
+	local parts = {
+		piece("UpperTorso", Vector3.new(2, 2, 1), Vector3.new(0, 0, 0), shirt),
+		piece("Head", Vector3.new(1.2, 1.2, 1.2), Vector3.new(0, 1.6, 0), SKIN),
+		piece("LeftLeg", Vector3.new(0.9, 2, 1), Vector3.new(-0.5, -2, 0), pants),
+		piece("RightLeg", Vector3.new(0.9, 2, 1), Vector3.new(0.5, -2, 0), pants),
+		piece("LeftArm", Vector3.new(0.8, 2, 0.8), Vector3.new(-1.4, 0, 0), SKIN),
+		piece("RightArm", Vector3.new(0.8, 2, 0.8), Vector3.new(1.4, 0, 0), SKIN),
+	}
+	for _, part in parts do
+		part.CanCollide = part.Name == "UpperTorso" or part.Name == "Head"
+		part.Massless = true
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = root
+		weld.Part1 = part
+		weld.Parent = part
+	end
+	local humanoid = Instance.new("Humanoid")
+	humanoid.RigType = Enum.HumanoidRigType.R15
+	humanoid.HipHeight = 2
+	humanoid.Parent = model
+	model.PrimaryPart = root
+	return model
+end
+
+local function buildRig(shirt: Color3, pants: Color3): Model
+	local description = Instance.new("HumanoidDescription")
+	description.HeadColor = SKIN
+	description.LeftArmColor = SKIN
+	description.RightArmColor = SKIN
+	description.TorsoColor = shirt
+	description.LeftLegColor = pants
+	description.RightLegColor = pants
+
+	local ok, result = pcall(function()
+		return Players:CreateHumanoidModelFromDescription(description, Enum.HumanoidRigType.R15)
+	end)
+	if ok and result then
+		for _, child in result:GetDescendants() do
+			if child:IsA("BaseScript") then
+				child:Destroy()
+			end
+		end
+		return result
+	end
+	warn("[LaunchParty] Avatar rig failed, using fallback rig:", result)
+	return buildFallbackRig(shirt, pants)
+end
+
+local function setupAnimations(fighter: Fighter)
+	local humanoid = fighter.Humanoid :: Humanoid
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		local created = Instance.new("Animator")
+		created.Parent = humanoid
+		animator = created
+	end
+
+	local tracks: { [string]: AnimationTrack } = {}
+	for key, id in Config.Anims do
+		local animation = Instance.new("Animation")
+		animation.AnimationId = id
+		local ok, track = pcall(function()
+			return (animator :: Animator):LoadAnimation(animation)
+		end)
+		if ok and track then
+			tracks[key] = track
+		end
+	end
+	if tracks.Idle then
+		tracks.Idle.Looped = true
+		tracks.Idle.Priority = Enum.AnimationPriority.Idle
+		tracks.Idle:Play()
+	end
+	if tracks.Walk then
+		tracks.Walk.Looped = true
+		tracks.Walk.Priority = Enum.AnimationPriority.Movement
+	end
+	for _, key in { "Punch", "Charged" } do
+		if tracks[key] then
+			tracks[key].Priority = Enum.AnimationPriority.Action
+		end
+	end
+
+	fighter.AnimPlayer = function(kind: string)
+		local track = tracks[kind]
+		if track then
+			track:Play(0.05)
+			track:AdjustSpeed(1.6)
+		end
+	end
+	fighter.Brain = fighter.Brain or {}
+	fighter.Brain.Tracks = tracks
+end
+
+-- Lifecycle ------------------------------------------------------------------------
+
+function BotService.CreateBot(): Fighter
+	nextBotId += 1
+	local fighter = FighterService.New("B" .. nextBotId, pickName(), { IsBot = true })
+	local palette = PALETTES[rng:NextInteger(1, #PALETTES)]
+	fighter.Brain = {
+		Shirt = palette[1],
+		Pants = palette[2],
+		Skill = rng:NextNumber(0.35, 0.85),
+		Target = nil,
+		NextRetarget = 0,
+		NextAttack = 0,
+		ChargeRelease = nil,
+		Tracks = {},
+	}
+	table.insert(bots, fighter)
+	return fighter
+end
+
+function BotService.SpawnModel(fighter: Fighter, cframe: CFrame): boolean
+	BotService.DespawnModel(fighter)
+	local brain = fighter.Brain
+	local model = buildRig(brain.Shirt, brain.Pants)
+	model.Name = fighter.Name
+	model:PivotTo(cframe)
+	model.Parent = getFolder()
+
+	if not FighterService.BindModel(fighter, model) then
+		model:Destroy()
+		return false
+	end
+	local root = fighter.Root :: BasePart
+	pcall(function()
+		root:SetNetworkOwner(nil)
+	end)
+	setupAnimations(fighter)
+	return true
+end
+
+function BotService.DespawnModel(fighter: Fighter)
+	local model = fighter.Model
+	FighterService.UnbindModel(fighter)
+	if model then
+		model:Destroy()
+	end
+end
+
+function BotService.Remove(fighter: Fighter)
+	BotService.DespawnModel(fighter)
+	FighterService.Remove(fighter)
+	local index = table.find(bots, fighter)
+	if index then
+		table.remove(bots, index)
+	end
+end
+
+function BotService.CreateDummy(home: CFrame): Fighter
+	nextBotId += 1
+	local fighter = FighterService.New("D" .. nextBotId, "Practice Dummy", { IsBot = true, IsDummy = true })
+	fighter.Brain = { Shirt = Color3.fromRGB(230, 170, 90), Pants = Color3.fromRGB(150, 100, 60), Skill = 0, Tracks = {} }
+	fighter.Home = home
+	fighter.Zone = "Lobby"
+	BotService.SpawnModel(fighter, home)
+	table.insert(bots, fighter)
+	return fighter
+end
+
+-- AI -------------------------------------------------------------------------------
+
+local function flat(vector: Vector3): Vector3
+	return Vector3.new(vector.X, 0, vector.Z)
+end
+
+local function safeUnit(vector: Vector3, fallback: Vector3): Vector3
+	if vector.Magnitude > 0.05 then
+		return vector.Unit
+	end
+	return fallback
+end
+
+local function chooseTarget(fighter: Fighter, candidates: { Fighter }): Fighter?
+	local root = fighter.Root :: BasePart
+	local best, bestScore = nil, math.huge
+	for _, other in candidates do
+		if other ~= fighter then
+			local distance = flat((other.Root :: BasePart).Position - root.Position).Magnitude
+			-- Prefer close, high-heat targets, and gang up on the crowned leader.
+			local score = distance - other.Heat * 0.1 - (if other.Crowned then 12 else 0)
+			if score < bestScore then
+				best, bestScore = other, score
+			end
+		end
+	end
+	return best
+end
+
+local function updateWalkAnimation(fighter: Fighter)
+	local tracks = fighter.Brain and fighter.Brain.Tracks
+	local walk = tracks and tracks.Walk
+	if not walk then
+		return
+	end
+	local humanoid = fighter.Humanoid :: Humanoid
+	local speed = flat((fighter.Root :: BasePart).AssemblyLinearVelocity).Magnitude
+	local moving = speed > 1.5 and not humanoid.PlatformStand
+	if moving and not walk.IsPlaying then
+		walk:Play(0.15)
+	elseif not moving and walk.IsPlaying then
+		walk:Stop(0.2)
+	end
+	if moving then
+		walk:AdjustSpeed(math.clamp(speed / 14, 0.6, 1.8))
+	end
+end
+
+local function thinkDummy(fighter: Fighter, now: number)
+	local home = fighter.Home :: CFrame
+	if not FighterService.IsAlive(fighter) then
+		BotService.SpawnModel(fighter, home)
+		return
+	end
+	local root = fighter.Root :: BasePart
+	local away = (root.Position - home.Position).Magnitude
+	local idle = now - fighter.LastHitTime > 4 and now > fighter.TumbleUntil
+	if root.Position.Y < ArenaService.GetLobbyVoidY() or away > 40 or (idle and away > 3) then
+		FighterService.Teleport(fighter, home)
+	end
+end
+
+local function think(fighter: Fighter, now: number)
+	local humanoid = fighter.Humanoid :: Humanoid
+	local root = fighter.Root :: BasePart
+	local brain = fighter.Brain
+	local skill = brain.Skill
+	local center = ArenaService.GetCenter()
+	local position = root.Position
+	local toCenter = safeUnit(flat(center - position), Vector3.new(0, 0, 1))
+	local overArena = ArenaService.IsOverArena(position)
+
+	-- Recovery: launched off the edge? Air-dash back toward the middle.
+	if not overArena and position.Y < center.Y + 1 then
+		if rng:NextNumber() < 0.25 + skill * 0.6 then
+			CombatService.TryDash(fighter, toCenter)
+		end
+		humanoid:Move(toCenter, false)
+		return
+	end
+	if now < fighter.TumbleUntil or humanoid.PlatformStand then
+		return
+	end
+
+	if now >= brain.NextRetarget or not brain.Target or not brain.Target.Alive then
+		brain.Target = chooseTarget(fighter, FighterService.AliveInArena())
+		brain.NextRetarget = now + rng:NextNumber(0.8, 1.6)
+	end
+	local target: Fighter? = brain.Target
+	if not target or not FighterService.IsAlive(target) then
+		humanoid:Move(toCenter * 0.5, false)
+		return
+	end
+
+	local offset = flat((target.Root :: BasePart).Position - position)
+	local distance = offset.Magnitude
+	local aim = safeUnit(offset, root.CFrame.LookVector)
+	-- Imperfect aim so bots feel human.
+	local wobble = (1 - skill) * 0.35
+	aim = safeUnit(aim + Vector3.new(rng:NextNumber(-wobble, wobble), 0, rng:NextNumber(-wobble, wobble)), aim)
+
+	-- Edge avoidance: never walk somewhere with no floor.
+	local moveDir = aim
+	if not ArenaService.IsOverArena(position + moveDir * 5) then
+		moveDir = toCenter
+	end
+
+	if brain.ChargeRelease then
+		humanoid:Move(moveDir * 0.6, false)
+		if now >= brain.ChargeRelease or (distance <= Config.Combat.PunchRange and now >= brain.ChargeRelease - 0.3) then
+			root.CFrame = CFrame.lookAt(position, position + aim)
+			CombatService.ReleasePunch(fighter, aim)
+			brain.ChargeRelease = nil
+			brain.NextAttack = now + rng:NextNumber(0.3, 0.7)
+		end
+		return
+	end
+
+	if distance <= Config.Combat.PunchRange * 0.9 then
+		humanoid:Move(moveDir * 0.3, false)
+		local cooldown = Config.Combat.PunchCooldown * fighter.Stats.PunchCooldownMult
+		if now >= brain.NextAttack and now - fighter.LastPunch >= cooldown then
+			root.CFrame = CFrame.lookAt(position, position + aim)
+			if target.Heat > 55 and rng:NextNumber() < 0.35 + skill * 0.3 then
+				if CombatService.BeginCharge(fighter) then
+					brain.ChargeRelease = now + rng:NextNumber(0.45, 0.95)
+				end
+			else
+				CombatService.ReleasePunch(fighter, aim)
+			end
+			brain.NextAttack = now + rng:NextNumber(0.12, 0.5) * (1.4 - skill)
+		end
+	else
+		humanoid:Move(moveDir, false)
+		if distance > 9 and distance < 18 and rng:NextNumber() < 0.03 + skill * 0.04 then
+			if ArenaService.IsOverArena(position + aim * 16) then
+				CombatService.TryDash(fighter, aim)
+			end
+		end
+	end
+
+	if rng:NextNumber() < 0.012 then
+		humanoid.Jump = true
+	end
+end
+
+function BotService.Init()
+	task.spawn(function()
+		while true do
+			task.wait(0.1)
+			local now = os.clock()
+			for _, fighter in table.clone(bots) do
+				local ok, err = pcall(function()
+					if fighter.IsDummy then
+						thinkDummy(fighter, now)
+					elseif fighter.Alive and fighter.Zone == "Arena" and FighterService.IsAlive(fighter) then
+						if CombatService.IsArenaLive() and not fighter.Frozen then
+							think(fighter, now)
+						else
+							(fighter.Humanoid :: Humanoid):Move(Vector3.zero, false)
+						end
+					end
+					if FighterService.IsAlive(fighter) then
+						updateWalkAnimation(fighter)
+					end
+				end)
+				if not ok then
+					warn("[LaunchParty] Bot error:", fighter.Name, err)
+				end
+			end
+		end
+	end)
+end
+
+-- Lets events (e.g. the Sweeper) nudge bots into jumping.
+function BotService.GetSkill(fighter: Fighter): number
+	return if fighter.Brain and fighter.Brain.Skill then fighter.Brain.Skill else 0
+end
+
+return BotService
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX00000010">
+					<Properties>
+						<string name="Name">CombatService</string>
+						<ProtectedString name="Source"><![CDATA[-- Server-authoritative combat. Clients only *request* actions; the server validates timing,
+-- range and state, resolves hits against server-side positions, then tells physics owners to launch.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Shared = ReplicatedStorage.Shared
+local Config = require(Shared.Config)
+local Knockback = require(Shared.Knockback)
+local Movement = require(Shared.Movement)
+local Net = require(Shared.Net)
+
+local FighterService = require(script.Parent.FighterService)
+
+type Fighter = FighterService.Fighter
+
+local CombatService = {}
+
+local C = Config.Combat
+local effectRemote = Net.Event("Effect")
+
+local arenaLive = false
+local rateBuckets: { [Player]: { Tokens: number, Last: number } } = {}
+
+-- Validation helpers -------------------------------------------------------------
+
+local function isFiniteVector(value: any): boolean
+	if typeof(value) ~= "Vector3" then
+		return false
+	end
+	for _, axis in { value.X, value.Y, value.Z } do
+		if axis ~= axis or math.abs(axis) > 1e5 then
+			return false
+		end
+	end
+	return true
+end
+
+local function flatUnit(value: any, fallback: Vector3): Vector3
+	if isFiniteVector(value) then
+		local flat = Vector3.new(value.X, 0, value.Z)
+		if flat.Magnitude > 0.05 then
+			return flat.Unit
+		end
+	end
+	local flatFallback = Vector3.new(fallback.X, 0, fallback.Z)
+	if flatFallback.Magnitude > 0.05 then
+		return flatFallback.Unit
+	end
+	return Vector3.new(0, 0, -1)
+end
+
+local function allowRequest(player: Player): boolean
+	local now = os.clock()
+	local bucket = rateBuckets[player]
+	if not bucket then
+		bucket = { Tokens = C.MaxActionsPerSecond, Last = now }
+		rateBuckets[player] = bucket
+	end
+	bucket.Tokens = math.min(C.MaxActionsPerSecond, bucket.Tokens + (now - bucket.Last) * C.MaxActionsPerSecond)
+	bucket.Last = now
+	if bucket.Tokens < 1 then
+		return false
+	end
+	bucket.Tokens -= 1
+	return true
+end
+
+-- State ----------------------------------------------------------------------------
+
+function CombatService.SetArenaLive(live: boolean)
+	arenaLive = live
+	if not live then
+		for _, fighter in FighterService.All() do
+			if fighter.Zone == "Arena" and fighter.ChargeStart then
+				FighterService.SetCharging(fighter, false)
+			end
+		end
+	end
+end
+
+function CombatService.IsArenaLive(): boolean
+	return arenaLive
+end
+
+function CombatService.CanAct(fighter: Fighter): boolean
+	if fighter.Frozen or not FighterService.IsAlive(fighter) then
+		return false
+	end
+	if fighter.Zone == "Lobby" then
+		return true
+	end
+	return fighter.Zone == "Arena" and fighter.Alive and arenaLive
+end
+
+local function canBeHit(attacker: Fighter, target: Fighter): boolean
+	if target == attacker or target.Zone ~= attacker.Zone or not FighterService.IsAlive(target) then
+		return false
+	end
+	if target.Zone == "Arena" then
+		return target.Alive
+	end
+	return target.Zone == "Lobby"
+end
+
+-- Hits ----------------------------------------------------------------------------
+
+type HitSpec = {
+	Heat: number,
+	Knock: number,
+	Direction: Vector3, -- flat unit vector
+	Kind: string, -- "Jab" | "Charged" | "Shockwave" | "Bump" | environment names
+	Power: number, -- 0..1, purely cosmetic
+}
+
+local function launch(victim: Fighter, attacker: Fighter?, spec: HitSpec)
+	local victimStats = victim.Stats
+	local dealtHeat = if attacker then attacker.Stats.HeatDealt else 1
+	local dealtKnock = if attacker then attacker.Stats.KnockDealt else 1
+
+	local heatGain = spec.Heat * dealtHeat * victimStats.HeatTaken
+	FighterService.AddHeat(victim, heatGain)
+
+	local speed = Knockback.Speed(spec.Knock, victim.Heat, dealtKnock, victimStats.KnockTaken, C)
+	local velocity = spec.Direction * speed + Vector3.new(0, Knockback.Vertical(speed, C), 0)
+	local tumble = Knockback.Tumble(speed, C)
+	FighterService.ApplyKnockback(victim, velocity, tumble)
+
+	if attacker then
+		victim.LastHitBy = attacker
+		victim.LastHitTime = os.clock()
+		if attacker.Stats.LifeSteal > 0 then
+			FighterService.AddHeat(attacker, -attacker.Stats.LifeSteal)
+		end
+		if victimStats.Thorns > 0 then
+			FighterService.AddHeat(attacker, heatGain * victimStats.Thorns)
+		end
+	end
+
+	effectRemote:FireAllClients("Hit", {
+		Position = (victim.Root :: BasePart).Position,
+		Attacker = if attacker then attacker.Id else nil,
+		Victim = victim.Id,
+		Kind = spec.Kind,
+		Power = spec.Power,
+		Speed = speed,
+		Heat = math.floor(heatGain + 0.5),
+	})
+end
+
+-- Environmental hazards (meteors, sweeper, gusts). Keeps existing KO credit intact.
+function CombatService.EnvironmentHit(victim: Fighter, direction: Vector3, heat: number, knock: number, kind: string)
+	if not FighterService.IsAlive(victim) then
+		return
+	end
+	launch(victim, nil, {
+		Heat = heat,
+		Knock = knock,
+		Direction = flatUnit(direction, Vector3.new(1, 0, 0)),
+		Kind = kind,
+		Power = 0.6,
+	})
+end
+
+-- Actions (shared by remotes and bots) --------------------------------------------
+
+function CombatService.BeginCharge(fighter: Fighter): boolean
+	if not CombatService.CanAct(fighter) or fighter.ChargeStart then
+		return false
+	end
+	if os.clock() < fighter.TumbleUntil then
+		return false
+	end
+	FighterService.SetCharging(fighter, true)
+	return true
+end
+
+function CombatService.ReleasePunch(fighter: Fighter, aimInput: any): boolean
+	local now = os.clock()
+	local chargeStart = fighter.ChargeStart
+	if chargeStart then
+		FighterService.SetCharging(fighter, false)
+	end
+	if not CombatService.CanAct(fighter) or now < fighter.TumbleUntil then
+		return false
+	end
+	local stats = fighter.Stats
+	local cooldown = C.PunchCooldown * stats.PunchCooldownMult
+	if now - fighter.LastPunch < cooldown - 0.06 then
+		return false
+	end
+	fighter.LastPunch = now
+
+	local alpha = 0
+	if chargeStart then
+		alpha = math.clamp((now - chargeStart) * stats.ChargeSpeed / C.ChargeMaxTime, 0, 1)
+	end
+	local charged = alpha >= C.ChargeThreshold
+	local power = if charged then alpha else 0
+
+	local root = fighter.Root :: BasePart
+	local aim = flatUnit(aimInput, root.CFrame.LookVector)
+	local origin = root.Position
+	local range = C.PunchRange + C.RangeLeniency + (if charged then C.ChargeRangeBonus else 0)
+
+	if fighter.AnimPlayer then
+		fighter.AnimPlayer(if charged then "Charged" else "Punch")
+	end
+
+	local candidates = {}
+	for _, other in FighterService.All() do
+		if canBeHit(fighter, other) then
+			local offset = (other.Root :: BasePart).Position - origin
+			local flat = Vector3.new(offset.X, 0, offset.Z)
+			local distance = flat.Magnitude
+			if distance <= range and math.abs(offset.Y) < 7 then
+				local dot = if distance > 0.01 then flat.Unit:Dot(aim) else 1
+				if dot >= C.PunchCone or distance < 2.5 then
+					table.insert(candidates, { Fighter = other, Distance = distance, Flat = flat })
+				end
+			end
+		end
+	end
+	table.sort(candidates, function(a, b)
+		return a.Distance < b.Distance
+	end)
+
+	local heat = C.JabHeat * (1 + (C.ChargeHeatMult - 1) * power)
+	local knock = C.JabKnock * (1 + (C.ChargeKnockMult - 1) * power)
+	local hitSet: { [Fighter]: boolean } = {}
+	local maxTargets = if charged then #candidates else math.min(1, #candidates)
+
+	for i = 1, maxTargets do
+		local entry = candidates[i]
+		local toTarget = if entry.Distance > 0.01 then entry.Flat.Unit else aim
+		local direction = (aim * 0.6 + toTarget * 0.4)
+		hitSet[entry.Fighter] = true
+		launch(entry.Fighter, fighter, {
+			Heat = heat,
+			Knock = knock,
+			Direction = flatUnit(direction, aim),
+			Kind = if charged then "Charged" else "Jab",
+			Power = power,
+		})
+	end
+
+	if charged and stats.Shockwave > 0 then
+		effectRemote:FireAllClients("Shockwave", { Position = origin, Radius = C.ShockwaveRadius })
+		for _, other in FighterService.All() do
+			if not hitSet[other] and canBeHit(fighter, other) then
+				local offset = (other.Root :: BasePart).Position - origin
+				local flat = Vector3.new(offset.X, 0, offset.Z)
+				if flat.Magnitude <= C.ShockwaveRadius and math.abs(offset.Y) < 9 then
+					launch(other, fighter, {
+						Heat = heat * C.ShockwavePower,
+						Knock = knock * C.ShockwavePower,
+						Direction = flatUnit(flat, aim),
+						Kind = "Shockwave",
+						Power = power,
+					})
+				end
+			end
+		end
+	end
+	return true
+end
+
+function CombatService.TryDash(fighter: Fighter, directionInput: any): boolean
+	if not CombatService.CanAct(fighter) then
+		return false
+	end
+	local now = os.clock()
+	if now - fighter.LastHitTime < C.HitstunDashLock then
+		return false
+	end
+	local slot = nil
+	for index, readyAt in fighter.DashReady do
+		if readyAt <= now + 0.08 then
+			slot = index
+			break
+		end
+	end
+	if not slot then
+		return false
+	end
+	fighter.DashReady[slot] = now + C.DashCooldown * fighter.Stats.DashCooldownMult
+
+	local root = fighter.Root :: BasePart
+	local direction = flatUnit(directionInput, root.CFrame.LookVector)
+	if fighter.ChargeStart then
+		FighterService.SetCharging(fighter, false)
+	end
+	fighter.TumbleUntil = 0
+	fighter.DashUntil = now + C.DashDuration + 0.12
+	fighter.DashDir = direction
+	fighter.DashHits = {}
+
+	if not fighter.Player then
+		Movement.Dash(fighter.Humanoid :: Humanoid, root, direction, C)
+		if fighter.AnimPlayer then
+			fighter.AnimPlayer("Charged")
+		end
+	end
+	effectRemote:FireAllClients("Dash", { Position = root.Position, Fighter = fighter.Id })
+	return true
+end
+
+-- Per-frame: dash bumps, motion trails, dummy cooldown ----------------------------
+
+local function step()
+	local now = os.clock()
+	local all = FighterService.All()
+	for _, fighter in all do
+		if FighterService.IsAlive(fighter) then
+			local root = fighter.Root :: BasePart
+			if fighter.Trail then
+				fighter.Trail.Enabled = root.AssemblyLinearVelocity.Magnitude > 28
+			end
+
+			if fighter.DashUntil > now then
+				for _, other in all do
+					if not fighter.DashHits[other] and canBeHit(fighter, other) then
+						local distance = ((other.Root :: BasePart).Position - root.Position).Magnitude
+						if distance <= C.DashBumpRadius then
+							fighter.DashHits[other] = true
+							launch(other, fighter, {
+								Heat = C.DashBumpHeat,
+								Knock = C.DashBumpKnock * fighter.Stats.BumpMult,
+								Direction = fighter.DashDir,
+								Kind = "Bump",
+								Power = 0.4,
+							})
+						end
+					end
+				end
+			end
+
+			if fighter.IsDummy and fighter.Heat > 0 and now - fighter.LastHitTime > 3 then
+				FighterService.SetHeat(fighter, 0)
+			end
+		end
+	end
+end
+
+function CombatService.Init()
+	Net.Event("ChargeStart").OnServerEvent:Connect(function(player)
+		if not allowRequest(player) then
+			return
+		end
+		local fighter = FighterService.GetByPlayer(player)
+		if fighter then
+			CombatService.BeginCharge(fighter)
+		end
+	end)
+
+	Net.Event("Punch").OnServerEvent:Connect(function(player, aim)
+		if not allowRequest(player) then
+			return
+		end
+		local fighter = FighterService.GetByPlayer(player)
+		if fighter then
+			CombatService.ReleasePunch(fighter, aim)
+		end
+	end)
+
+	Net.Event("Dash").OnServerEvent:Connect(function(player, direction)
+		if not allowRequest(player) then
+			return
+		end
+		local fighter = FighterService.GetByPlayer(player)
+		if fighter then
+			CombatService.TryDash(fighter, direction)
+		end
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		rateBuckets[player] = nil
+	end)
+
+	RunService.Heartbeat:Connect(function()
+		local ok, err = pcall(step)
+		if not ok then
+			warn("[LaunchParty] Combat step error:", err)
+		end
+	end)
+end
+
+return CombatService
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX00000011">
+					<Properties>
+						<string name="Name">DataService</string>
+						<ProtectedString name="Source"><![CDATA[-- Persistent profiles (XP, wins, KOs) with retries, autosave and a safe offline fallback.
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Shared = ReplicatedStorage.Shared
+local Perks = require(Shared.Perks)
+local Progression = require(Shared.Progression)
+
+local DataService = {}
+
+local STORE_NAME = "LaunchParty_Profiles_v1"
+local AUTOSAVE_INTERVAL = 120
+local RETRIES = if RunService:IsStudio() then 1 else 3
+
+type Profile = { Data: { [string]: any }, Persistent: boolean, Dirty: boolean }
+
+local profiles: { [Player]: Profile } = {}
+local loadedEvent = Instance.new("BindableEvent")
+DataService.ProfileLoaded = loadedEvent.Event
+
+local store: DataStore? = nil
+do
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore(STORE_NAME)
+	end)
+	if ok then
+		store = result
+	else
+		warn("[LaunchParty] DataStores unavailable, progress will not save this session:", result)
+	end
+end
+
+local function defaultData(): { [string]: any }
+	return {
+		Version = 1,
+		XP = 0,
+		Wins = 0,
+		KOs = 0,
+		Matches = 0,
+		LastDailyWin = "",
+	}
+end
+
+local function reconcile(data: any): { [string]: any }
+	if type(data) ~= "table" then
+		return defaultData()
+	end
+	for key, value in defaultData() do
+		if type(data[key]) ~= type(value) then
+			data[key] = value
+		end
+	end
+	return data
+end
+
+local function withRetries(label: string, callback: () -> any): (boolean, any)
+	local lastError = nil
+	for attempt = 1, RETRIES do
+		local ok, result = pcall(callback)
+		if ok then
+			return true, result
+		end
+		lastError = result
+		if attempt < RETRIES then
+			task.wait(2 ^ attempt)
+		end
+	end
+	warn(string.format("[LaunchParty] %s failed: %s", label, tostring(lastError)))
+	return false, lastError
+end
+
+local function keyFor(player: Player): string
+	return "u_" .. player.UserId
+end
+
+local function publish(player: Player)
+	local profile = profiles[player]
+	if not profile then
+		return
+	end
+	local data = profile.Data
+	local level, into, needed = Progression.FromXP(data.XP)
+	local tier, title = Progression.TitleFor(level)
+
+	player:SetAttribute("Level", level)
+	player:SetAttribute("XPInto", into)
+	player:SetAttribute("XPNeeded", needed)
+	player:SetAttribute("Title", title)
+	player:SetAttribute("TitleTier", tier)
+	player:SetAttribute("DataPersistent", profile.Persistent)
+
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if leaderstats then
+		local values = { Level = level, Wins = data.Wins, KOs = data.KOs }
+		for name, value in values do
+			local stat = leaderstats:FindFirstChild(name)
+			if stat and stat:IsA("IntValue") then
+				stat.Value = value
+			end
+		end
+	end
+end
+
+local function createLeaderstats(player: Player)
+	if player:FindFirstChild("leaderstats") then
+		return
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = "leaderstats"
+	for _, name in { "Level", "Wins", "KOs" } do
+		local value = Instance.new("IntValue")
+		value.Name = name
+		value.Parent = folder
+	end
+	folder.Parent = player
+end
+
+function DataService.Load(player: Player)
+	local data = nil
+	local persistent = false
+	if store then
+		local ok, result = withRetries("Load " .. player.Name, function()
+			return (store :: DataStore):GetAsync(keyFor(player))
+		end)
+		if ok then
+			data = result
+			persistent = true
+		end
+	end
+	if not player.Parent then
+		return
+	end
+	profiles[player] = { Data = reconcile(data), Persistent = persistent, Dirty = false }
+	createLeaderstats(player)
+	publish(player)
+	loadedEvent:Fire(player)
+end
+
+function DataService.Save(player: Player)
+	local profile = profiles[player]
+	if not profile or not profile.Persistent or not store or not profile.Dirty then
+		return
+	end
+	local snapshot = table.clone(profile.Data)
+	local ok = withRetries("Save " .. player.Name, function()
+		(store :: DataStore):UpdateAsync(keyFor(player), function()
+			return snapshot
+		end)
+	end)
+	if ok then
+		profile.Dirty = false
+	end
+end
+
+function DataService.IsLoaded(player: Player): boolean
+	return profiles[player] ~= nil
+end
+
+function DataService.GetLevel(player: Player): number
+	local profile = profiles[player]
+	if not profile then
+		return 1
+	end
+	return (Progression.FromXP(profile.Data.XP))
+end
+
+function DataService.AddKO(player: Player)
+	local profile = profiles[player]
+	if profile then
+		profile.Data.KOs += 1
+		profile.Dirty = true
+		publish(player)
+	end
+end
+
+export type MatchInput = { Points: number, KOs: number, Placement: number, Won: boolean }
+
+function DataService.AwardMatch(player: Player, result: MatchInput): { [string]: any }?
+	local profile = profiles[player]
+	if not profile then
+		return nil
+	end
+	local data = profile.Data
+	local today = os.date("!%Y-%m-%d")
+	local daily = result.Won and data.LastDailyWin ~= today
+
+	local xp, breakdown = Progression.MatchXP({
+		Points = result.Points,
+		KOs = result.KOs,
+		Placement = result.Placement,
+		Won = result.Won,
+		DailyBonus = daily,
+	})
+	local oldLevel = Progression.FromXP(data.XP)
+	data.XP += xp
+	data.Matches += 1
+	if result.Won then
+		data.Wins += 1
+	end
+	if daily then
+		data.LastDailyWin = today
+	end
+	local newLevel, into, needed = Progression.FromXP(data.XP)
+
+	local unlocks = {}
+	for _, def in Perks.List do
+		if def.UnlockLevel > oldLevel and def.UnlockLevel <= newLevel then
+			table.insert(unlocks, "New perk: " .. def.Name)
+		end
+	end
+	for _, entry in Progression.Titles do
+		if entry.Level > oldLevel and entry.Level <= newLevel then
+			table.insert(unlocks, "New title & trail: " .. entry.Name)
+		end
+	end
+
+	profile.Dirty = true
+	publish(player)
+	return {
+		XP = xp,
+		Breakdown = breakdown,
+		OldLevel = oldLevel,
+		NewLevel = newLevel,
+		XPInto = into,
+		XPNeeded = needed,
+		Unlocks = unlocks,
+		Daily = daily,
+		Persistent = profile.Persistent,
+	}
+end
+
+function DataService.Init()
+	Players.PlayerRemoving:Connect(function(player)
+		DataService.Save(player)
+		profiles[player] = nil
+	end)
+
+	task.spawn(function()
+		while true do
+			task.wait(AUTOSAVE_INTERVAL)
+			for player in profiles do
+				task.spawn(DataService.Save, player)
+			end
+		end
+	end)
+
+	game:BindToClose(function()
+		local pending = 0
+		for player in profiles do
+			pending += 1
+			task.spawn(function()
+				DataService.Save(player)
+				pending -= 1
+			end)
+		end
+		local started = os.clock()
+		while pending > 0 and os.clock() - started < 25 do
+			task.wait(0.1)
+		end
+	end)
+end
+
+return DataService
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX00000012">
+					<Properties>
+						<string name="Name">DraftService</string>
+						<ProtectedString name="Source"><![CDATA[-- Between rounds every fighter picks 1 of 3 perk cards. Low placers get luckier rolls.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage.Shared
+local Draft = require(Shared.Draft)
+local Net = require(Shared.Net)
+local Perks = require(Shared.Perks)
+
+local DataService = require(script.Parent.DataService)
+local FighterService = require(script.Parent.FighterService)
+
+type Fighter = FighterService.Fighter
+
+local DraftService = {}
+
+local offerRemote = Net.Event("DraftOffer")
+local closeRemote = Net.Event("DraftClose")
+local pickRemote = Net.Event("DraftPick")
+local feedRemote = Net.Event("KillFeed")
+
+local rng = Random.new()
+
+type Pending = { Fighter: Fighter, Cards: { Perks.PerkDef }, Picked: boolean }
+local pendingByPlayer: { [Player]: Pending } = {}
+
+local function serialize(fighter: Fighter, cards: { Perks.PerkDef })
+	local list = {}
+	for _, def in cards do
+		table.insert(list, {
+			Id = def.Id,
+			Name = def.Name,
+			Description = def.Description,
+			Rarity = def.Rarity,
+			Owned = fighter.Perks[def.Id] or 0,
+			MaxStacks = def.MaxStacks,
+		})
+	end
+	return list
+end
+
+local function commit(pending: Pending, index: number)
+	if pending.Picked then
+		return
+	end
+	local def = pending.Cards[index]
+	if not def then
+		return
+	end
+	pending.Picked = true
+	FighterService.AddPerk(pending.Fighter, def.Id)
+	if def.Rarity == "Legendary" then
+		feedRemote:FireAllClients({ Text = string.format("✨ %s drafted %s!", pending.Fighter.Name, def.Name) })
+	end
+end
+
+-- Blocks until everyone picks or time runs out (unpicked fighters get a random card).
+function DraftService.Run(participants: { Fighter }, luckBy: { [Fighter]: number }, duration: number)
+	local endsAt = Workspace:GetServerTimeNow() + duration
+	local all: { Pending } = {}
+
+	for _, fighter in participants do
+		local level = if fighter.Player then DataService.GetLevel(fighter.Player) else 99
+		local pool = Perks.Pool(level)
+		local cards = Draft.Roll(pool, fighter.Perks, 3, luckBy[fighter] or 0.5, rng) :: { any }
+		if #cards > 0 then
+			local pending: Pending = { Fighter = fighter, Cards = cards, Picked = false }
+			table.insert(all, pending)
+			if fighter.Player and fighter.Player.Parent then
+				pendingByPlayer[fighter.Player] = pending
+				offerRemote:FireClient(fighter.Player, serialize(fighter, cards), endsAt)
+			else
+				task.delay(rng:NextNumber(1, 3), function()
+					commit(pending, rng:NextInteger(1, #pending.Cards))
+				end)
+			end
+		end
+	end
+
+	while Workspace:GetServerTimeNow() < endsAt do
+		local waiting = false
+		for _, pending in all do
+			if not pending.Picked and (not pending.Fighter.Player or pending.Fighter.Player.Parent) then
+				waiting = true
+				break
+			end
+		end
+		if not waiting then
+			break
+		end
+		task.wait(0.2)
+	end
+
+	for _, pending in all do
+		if not pending.Picked then
+			commit(pending, rng:NextInteger(1, #pending.Cards))
+		end
+	end
+	table.clear(pendingByPlayer)
+	closeRemote:FireAllClients()
+	task.wait(0.6)
+end
+
+function DraftService.Init()
+	pickRemote.OnServerEvent:Connect(function(player, index)
+		local pending = pendingByPlayer[player]
+		if not pending or type(index) ~= "number" or index ~= index then
+			return
+		end
+		index = math.floor(index)
+		if index < 1 or index > #pending.Cards then
+			return
+		end
+		commit(pending, index)
+	end)
+end
+
+return DraftService
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX00000013">
+					<Properties>
+						<string name="Name">EventService</string>
+						<ProtectedString name="Source"><![CDATA[-- Round modifiers. Each event has Start() which returns a cleanup function.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage.Shared
+local Config = require(Shared.Config)
+local Net = require(Shared.Net)
+
+local ArenaService = require(script.Parent.ArenaService)
+local BotService = require(script.Parent.BotService)
+local CombatService = require(script.Parent.CombatService)
+local FighterService = require(script.Parent.FighterService)
+
+local EventService = {}
+
+local E = Config.Events
+local effectRemote = Net.Event("Effect")
+local rng = Random.new()
+
+export type EventDef = {
+	Id: string,
+	Name: string,
+	Description: string,
+	Start: () -> () -> (),
+}
+
+local function noop() end
+
+local function flatOffset(a: Vector3, b: Vector3): Vector3
+	local offset = a - b
+	return Vector3.new(offset.X, 0, offset.Z)
+end
+
+local function hazardFolder(): Folder
+	local folder = Instance.new("Folder")
+	folder.Name = "EventHazards"
+	folder.Parent = Workspace
+	return folder
+end
+
+-- Meteor Shower ---------------------------------------------------------------------
+
+local function dropMeteor(folder: Folder, target: Vector3)
+	local warning = Instance.new("Part")
+	warning.Name = "MeteorWarning"
+	warning.Shape = Enum.PartType.Cylinder
+	warning.Size = Vector3.new(0.2, E.MeteorRadius * 2, E.MeteorRadius * 2)
+	warning.CFrame = CFrame.new(target + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	warning.Anchored = true
+	warning.CanCollide = false
+	warning.CanQuery = false
+	warning.CanTouch = false
+	warning.Material = Enum.Material.Neon
+	warning.Color = Color3.fromRGB(255, 70, 50)
+	warning.Transparency = 0.65
+	warning.Parent = folder
+	TweenService:Create(warning, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Transparency = 0.25,
+	}):Play()
+
+	local meteor = Instance.new("Part")
+	meteor.Name = "Meteor"
+	meteor.Shape = Enum.PartType.Ball
+	meteor.Size = Vector3.one * 6
+	meteor.Material = Enum.Material.Basalt
+	meteor.Color = Color3.fromRGB(80, 50, 40)
+	meteor.Anchored = true
+	meteor.CanCollide = false
+	meteor.CanQuery = false
+	meteor.CanTouch = false
+	local start = target + Vector3.new(rng:NextNumber(-30, 30), 95, rng:NextNumber(-30, 30))
+	meteor.CFrame = CFrame.new(start)
+	local fire = Instance.new("Fire")
+	fire.Size = 9
+	fire.Heat = 15
+	fire.Parent = meteor
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 140, 60)
+	light.Range = 18
+	light.Brightness = 3
+	light.Parent = meteor
+	meteor.Parent = folder
+
+	local fall = TweenService:Create(meteor, TweenInfo.new(1.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		CFrame = CFrame.new(target + Vector3.new(0, 2, 0)),
+	})
+	fall.Completed:Connect(function(state)
+		warning:Destroy()
+		meteor:Destroy()
+		if state ~= Enum.PlaybackState.Completed or not folder.Parent then
+			return
+		end
+		effectRemote:FireAllClients("Meteor", { Position = target, Radius = E.MeteorRadius })
+		for _, fighter in FighterService.AliveInArena() do
+			local offset = flatOffset((fighter.Root :: BasePart).Position, target)
+			if offset.Magnitude <= E.MeteorRadius then
+				local direction = if offset.Magnitude > 0.1 then offset.Unit else Vector3.new(rng:NextNumber(-1, 1), 0, 1)
+				CombatService.EnvironmentHit(fighter, direction, E.MeteorHeat, E.MeteorKnock, "Meteor")
+			end
+		end
+		ArenaService.BreakTilesNear(target, 4)
+	end)
+	fall:Play()
+end
+
+local function startMeteors(): () -> ()
+	local folder = hazardFolder()
+	local running = true
+	task.spawn(function()
+		task.wait(2)
+		while running do
+			local target = ArenaService.RandomTilePosition()
+			if target then
+				dropMeteor(folder, target)
+			end
+			task.wait(rng:NextNumber(E.MeteorInterval[1], E.MeteorInterval[2]))
+		end
+	end)
+	return function()
+		running = false
+		folder:Destroy()
+	end
+end
+
+-- The Sweeper ------------------------------------------------------------------------
+
+local function startSweeper(): () -> ()
+	local folder = hazardFolder()
+	local center = ArenaService.GetCenter()
+	local length = Config.Arena.Radius * 2 + 10
+
+	local beam = Instance.new("Part")
+	beam.Name = "SweeperBeam"
+	beam.Size = Vector3.new(length, 1.6, 1.6)
+	beam.Anchored = true
+	beam.CanCollide = false
+	beam.CanQuery = false
+	beam.CanTouch = false
+	beam.Material = Enum.Material.Neon
+	beam.Color = Color3.fromRGB(255, 60, 90)
+	beam.Parent = folder
+
+	local hub = Instance.new("Part")
+	hub.Name = "SweeperHub"
+	hub.Shape = Enum.PartType.Cylinder
+	hub.Size = Vector3.new(5, 5, 5)
+	hub.CFrame = CFrame.new(center + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	hub.Anchored = true
+	hub.Material = Enum.Material.Metal
+	hub.Color = Color3.fromRGB(50, 50, 60)
+	hub.Parent = folder
+
+	local angle = rng:NextNumber(0, math.pi * 2)
+	local started = os.clock()
+	local cooldowns: { [any]: number } = {}
+
+	local connection = RunService.Heartbeat:Connect(function(dt)
+		local ramp = math.clamp((os.clock() - started) / 40, 0, 1)
+		local omega = E.SweeperSpeed[1] + (E.SweeperSpeed[2] - E.SweeperSpeed[1]) * ramp
+		angle += omega * dt
+		beam.CFrame = CFrame.new(center + Vector3.new(0, 2.2, 0)) * CFrame.Angles(0, angle, 0)
+		if not CombatService.IsArenaLive() then
+			return
+		end
+
+		local axis = Vector3.new(math.cos(angle), 0, -math.sin(angle))
+		local sweepDir = Vector3.new(-math.sin(angle), 0, -math.cos(angle))
+		local now = os.clock()
+		for _, fighter in FighterService.AliveInArena() do
+			local position = (fighter.Root :: BasePart).Position
+			local relative = flatOffset(position, center)
+			local along = relative:Dot(axis)
+			local perpendicular = (relative - axis * along).Magnitude
+			local height = position.Y - center.Y
+			if math.abs(along) <= length / 2 and perpendicular < 2.6 and height < 4.6 then
+				if (cooldowns[fighter] or 0) <= now then
+					cooldowns[fighter] = now + 0.7
+					local push = sweepDir * (if along >= 0 then 1 else -1)
+					CombatService.EnvironmentHit(fighter, push, E.SweeperHeat, E.SweeperKnock, "Sweeper")
+				end
+			elseif fighter.IsBot and perpendicular < 6 and height < 4.6 then
+				-- Bots try to hop the beam, better bots more reliably.
+				if rng:NextNumber() < 0.05 + BotService.GetSkill(fighter) * 0.12 then
+					(fighter.Humanoid :: Humanoid).Jump = true
+				end
+			end
+		end
+	end)
+
+	return function()
+		connection:Disconnect()
+		folder:Destroy()
+	end
+end
+
+-- Gusts ------------------------------------------------------------------------------
+
+local function startGusts(): () -> ()
+	local running = true
+	task.spawn(function()
+		task.wait(4)
+		while running do
+			local angle = rng:NextNumber(0, math.pi * 2)
+			local direction = Vector3.new(math.cos(angle), 0, math.sin(angle))
+			effectRemote:FireAllClients("GustWarning", { Direction = direction, Center = ArenaService.GetCenter() })
+			task.wait(E.GustWarning)
+			if not running then
+				break
+			end
+			effectRemote:FireAllClients("Gust", { Direction = direction, Center = ArenaService.GetCenter() })
+			for _, fighter in FighterService.AliveInArena() do
+				CombatService.EnvironmentHit(fighter, direction, 0, E.GustKnock, "Gust")
+			end
+			task.wait(E.GustInterval)
+		end
+	end)
+	return function()
+		running = false
+	end
+end
+
+-- Registry ---------------------------------------------------------------------------
+
+EventService.Classic = {
+	Id = "Classic",
+	Name = "Classic",
+	Description = "No tricks. Just fists.",
+	Start = function()
+		return noop
+	end,
+} :: EventDef
+
+EventService.Events = {
+	{
+		Id = "LowGravity",
+		Name = "Low Gravity",
+		Description = "Floaty jumps. Launches go to the moon.",
+		Start = function()
+			Workspace.Gravity = E.LowGravity
+			return function()
+				Workspace.Gravity = E.DefaultGravity
+			end
+		end,
+	},
+	{
+		Id = "Meteors",
+		Name = "Meteor Shower",
+		Description = "Watch the red circles. They punch holes in the arena.",
+		Start = startMeteors,
+	},
+	{
+		Id = "Ice",
+		Name = "Ice Rink",
+		Description = "Zero friction. Every hit slides you way further.",
+		Start = function()
+			ArenaService.SetIce(true)
+			return noop
+		end,
+	},
+	{
+		Id = "Sweeper",
+		Name = "The Sweeper",
+		Description = "A spinning beam that speeds up. JUMP!",
+		Start = startSweeper,
+	},
+	{
+		Id = "Gusts",
+		Name = "Gusty Skies",
+		Description = "Wind blasts everyone sideways. Brace yourself.",
+		Start = startGusts,
+	},
+} :: { EventDef }
+
+local lastEventId: string? = nil
+local activeStop: (() -> ())? = nil
+
+function EventService.Pick(round: number): EventDef
+	if round == 1 then
+		lastEventId = EventService.Classic.Id
+		return EventService.Classic
+	end
+	local options = {}
+	for _, event in EventService.Events do
+		if event.Id ~= lastEventId then
+			table.insert(options, event)
+		end
+	end
+	local chosen = options[rng:NextInteger(1, #options)]
+	lastEventId = chosen.Id
+	return chosen
+end
+
+function EventService.Start(event: EventDef)
+	EventService.Stop()
+	local ok, result = pcall(event.Start)
+	if ok and type(result) == "function" then
+		activeStop = result
+	else
+		warn("[LaunchParty] Event failed to start:", event.Id, result)
+	end
+end
+
+function EventService.Stop()
+	local stop = activeStop
+	activeStop = nil
+	if stop then
+		local ok, err = pcall(stop)
+		if not ok then
+			warn("[LaunchParty] Event cleanup failed:", err)
+		end
+	end
+	Workspace.Gravity = E.DefaultGravity
+end
+
+return EventService
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX00000014">
+					<Properties>
+						<string name="Name">FighterService</string>
+						<ProtectedString name="Source"><![CDATA[-- Registry of every combatant (players, bots, lobby dummies) plus their match state.
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage.Shared
+local Config = require(Shared.Config)
+local Cosmetics = require(Shared.Cosmetics)
+local Movement = require(Shared.Movement)
+local Net = require(Shared.Net)
+local Perks = require(Shared.Perks)
+
+local FighterService = {}
+
+export type Fighter = {
+	Id: string,
+	Name: string,
+	Player: Player?,
+	IsBot: boolean,
+	IsDummy: boolean,
+	Model: Model?,
+	Humanoid: Humanoid?,
+	Root: BasePart?,
+	Tag: BillboardGui?,
+	Trail: Trail?,
+	Highlight: Highlight?,
+	ModelConnections: { RBXScriptConnection },
+
+	Zone: string, -- "Lobby" | "Arena" | "None"
+	Alive: boolean, -- still in the current round
+	Frozen: boolean,
+	Heat: number,
+	Perks: { [string]: number },
+	Stats: Perks.Stats,
+	Points: number,
+	KOs: number,
+	LivesLeft: number,
+	Crowned: boolean,
+	InMatch: boolean,
+	Placement: number,
+
+	LastHitBy: any?,
+	LastHitTime: number,
+	TumbleUntil: number,
+	VoidImmuneUntil: number,
+	LastPunch: number,
+	ChargeStart: number?,
+	DashReady: { number },
+	DashUntil: number,
+	DashDir: Vector3,
+	DashHits: { [any]: boolean },
+
+	Level: number,
+	TitleName: string,
+	TrailTier: number,
+	AnimPlayer: ((string) -> ())?,
+	Brain: any?,
+	Home: CFrame?,
+}
+
+local fighters: { [string]: Fighter } = {}
+local knockbackRemote = Net.Event("Knockback")
+
+function FighterService.New(id: string, name: string, options: { Player: Player?, IsBot: boolean?, IsDummy: boolean? }): Fighter
+	local fighter: Fighter = {
+		Id = id,
+		Name = name,
+		Player = options.Player,
+		IsBot = options.IsBot == true,
+		IsDummy = options.IsDummy == true,
+		Model = nil,
+		Humanoid = nil,
+		Root = nil,
+		Tag = nil,
+		Trail = nil,
+		Highlight = nil,
+		ModelConnections = {},
+
+		Zone = "None",
+		Alive = false,
+		Frozen = false,
+		Heat = 0,
+		Perks = {},
+		Stats = Perks.Compute({}),
+		Points = 0,
+		KOs = 0,
+		LivesLeft = 0,
+		Crowned = false,
+		InMatch = false,
+		Placement = 0,
+
+		LastHitBy = nil,
+		LastHitTime = -math.huge,
+		TumbleUntil = 0,
+		VoidImmuneUntil = 0,
+		LastPunch = -math.huge,
+		ChargeStart = nil,
+		DashReady = { 0 },
+		DashUntil = 0,
+		DashDir = Vector3.zero,
+		DashHits = {},
+
+		Level = 1,
+		TitleName = "Rookie",
+		TrailTier = 1,
+		AnimPlayer = nil,
+		Brain = nil,
+		Home = nil,
+	}
+	fighters[id] = fighter
+	return fighter
+end
+
+function FighterService.Get(id: string): Fighter?
+	return fighters[id]
+end
+
+function FighterService.GetByPlayer(player: Player): Fighter?
+	return fighters["P" .. player.UserId]
+end
+
+function FighterService.All(): { Fighter }
+	local list = {}
+	for _, fighter in fighters do
+		table.insert(list, fighter)
+	end
+	return list
+end
+
+function FighterService.IsAlive(fighter: Fighter): boolean
+	local model, humanoid, root = fighter.Model, fighter.Humanoid, fighter.Root
+	return model ~= nil
+		and model.Parent ~= nil
+		and humanoid ~= nil
+		and humanoid.Health > 0
+		and root ~= nil
+		and root.Parent ~= nil
+end
+
+-- Fighters still alive in the current round's arena.
+function FighterService.AliveInArena(): { Fighter }
+	local list = {}
+	for _, fighter in fighters do
+		if fighter.Alive and fighter.Zone == "Arena" and FighterService.IsAlive(fighter) then
+			table.insert(list, fighter)
+		end
+	end
+	return list
+end
+
+-- Cosmetic tag ---------------------------------------------------------------
+
+local function createTag(fighter: Fighter, model: Model): BillboardGui
+	local adornee = model:FindFirstChild("Head") or fighter.Root
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "FighterTag"
+	gui.Size = UDim2.fromOffset(220, 58)
+	gui.StudsOffset = Vector3.new(0, 2.6, 0)
+	gui.AlwaysOnTop = true
+	gui.MaxDistance = 160
+	gui.LightInfluence = 0
+	gui.Adornee = adornee :: BasePart
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "NameLabel"
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Size = UDim2.new(1, 0, 0.4, 0)
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextScaled = true
+	nameLabel.TextColor3 = Color3.new(1, 1, 1)
+	nameLabel.TextStrokeTransparency = 0.35
+	nameLabel.Parent = gui
+
+	local heatLabel = Instance.new("TextLabel")
+	heatLabel.Name = "HeatLabel"
+	heatLabel.BackgroundTransparency = 1
+	heatLabel.Position = UDim2.new(0, 0, 0.4, 0)
+	heatLabel.Size = UDim2.new(1, 0, 0.6, 0)
+	heatLabel.Font = Enum.Font.FredokaOne
+	heatLabel.TextScaled = true
+	heatLabel.TextStrokeTransparency = 0.2
+	heatLabel.Parent = gui
+
+	gui.Parent = model
+	return gui
+end
+
+local function createTrail(fighter: Fighter, root: BasePart): Trail
+	local top = Instance.new("Attachment")
+	top.Name = "TrailTop"
+	top.Position = Vector3.new(0, 0.9, 0)
+	top.Parent = root
+	local bottom = Instance.new("Attachment")
+	bottom.Name = "TrailBottom"
+	bottom.Position = Vector3.new(0, -0.9, 0)
+	bottom.Parent = root
+
+	local trail = Instance.new("Trail")
+	trail.Name = "LaunchTrail"
+	trail.Attachment0 = top
+	trail.Attachment1 = bottom
+	trail.Lifetime = 0.3
+	trail.MinLength = 0.1
+	trail.FaceCamera = true
+	trail.LightEmission = 0.6
+	trail.Transparency = NumberSequence.new(0.25, 1)
+	trail.WidthScale = NumberSequence.new(1, 0.2)
+	trail.Color = Cosmetics.TrailFor(fighter.TrailTier)
+	trail.Enabled = false
+	trail.Parent = root
+	return trail
+end
+
+function FighterService.RefreshTag(fighter: Fighter)
+	local tag = fighter.Tag
+	if not tag or not tag.Parent then
+		return
+	end
+	local nameLabel = tag:FindFirstChild("NameLabel") :: TextLabel?
+	local heatLabel = tag:FindFirstChild("HeatLabel") :: TextLabel?
+	if nameLabel then
+		local prefix = if fighter.Crowned then "👑 " else ""
+		local suffix = if fighter.IsDummy then "" elseif fighter.IsBot then "  · BOT" else "  · " .. fighter.TitleName
+		nameLabel.Text = prefix .. fighter.Name .. suffix
+		nameLabel.TextColor3 = if fighter.Crowned then Color3.fromRGB(255, 220, 90) else Color3.new(1, 1, 1)
+	end
+	if heatLabel then
+		heatLabel.Text = string.format("%d%%", math.floor(fighter.Heat))
+		heatLabel.TextColor3 = Cosmetics.HeatColor(fighter.Heat)
+	end
+end
+
+function FighterService.RefreshCosmetics(fighter: Fighter)
+	if fighter.Trail then
+		fighter.Trail.Color = Cosmetics.TrailFor(fighter.TrailTier)
+	end
+	FighterService.RefreshTag(fighter)
+end
+
+-- Model binding ----------------------------------------------------------------
+
+function FighterService.UnbindModel(fighter: Fighter)
+	for _, connection in fighter.ModelConnections do
+		connection:Disconnect()
+	end
+	table.clear(fighter.ModelConnections)
+	if fighter.Model then
+		CollectionService:RemoveTag(fighter.Model, "Fighter")
+	end
+	fighter.Model = nil
+	fighter.Humanoid = nil
+	fighter.Root = nil
+	fighter.Tag = nil
+	fighter.Trail = nil
+	fighter.Highlight = nil
+	fighter.ChargeStart = nil
+end
+
+function FighterService.BindModel(fighter: Fighter, model: Model): boolean
+	FighterService.UnbindModel(fighter)
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not humanoid or not root then
+		warn("[LaunchParty] Cannot bind fighter without Humanoid/HumanoidRootPart:", fighter.Name)
+		return false
+	end
+
+	fighter.Model = model
+	fighter.Humanoid = humanoid
+	fighter.Root = root
+	model:SetAttribute("FighterId", fighter.Id)
+	model:SetAttribute("Heat", fighter.Heat)
+	CollectionService:AddTag(model, "Fighter")
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	humanoid.BreakJointsOnDeath = false
+
+	fighter.Tag = createTag(fighter, model)
+	fighter.Trail = createTrail(fighter, root)
+	FighterService.ApplyStats(fighter)
+	FighterService.RefreshTag(fighter)
+
+	table.insert(
+		fighter.ModelConnections,
+		model.AncestryChanged:Connect(function(_, parent)
+			if parent == nil and fighter.Model == model then
+				FighterService.UnbindModel(fighter)
+			end
+		end)
+	)
+	return true
+end
+
+-- Stats, heat & movement --------------------------------------------------------
+
+function FighterService.RefreshMovement(fighter: Fighter)
+	local humanoid = fighter.Humanoid
+	if not humanoid or not humanoid.Parent then
+		return
+	end
+	local walk = fighter.Stats.WalkSpeed
+	if fighter.ChargeStart then
+		walk *= Config.Combat.ChargeWalkMult
+	end
+	humanoid.UseJumpPower = true
+	humanoid.WalkSpeed = if fighter.Frozen then 0 else walk
+	humanoid.JumpPower = if fighter.Frozen then 0 else fighter.Stats.JumpPower
+end
+
+function FighterService.ApplyStats(fighter: Fighter)
+	local stats = fighter.Stats
+	while #fighter.DashReady < stats.DashCharges do
+		table.insert(fighter.DashReady, 0)
+	end
+	while #fighter.DashReady > stats.DashCharges do
+		table.remove(fighter.DashReady)
+	end
+	FighterService.RefreshMovement(fighter)
+
+	local model = fighter.Model
+	if model and model.Parent then
+		local ok, current = pcall(function()
+			return model:GetScale()
+		end)
+		if ok and math.abs(current - stats.Scale) > 0.01 then
+			local scaled, err = pcall(function()
+				model:ScaleTo(stats.Scale)
+			end)
+			if not scaled then
+				warn("[LaunchParty] ScaleTo failed:", err)
+			end
+		end
+	end
+
+	local player = fighter.Player
+	if player then
+		player:SetAttribute("PunchCooldown", Config.Combat.PunchCooldown * stats.PunchCooldownMult)
+		player:SetAttribute("DashCooldown", Config.Combat.DashCooldown * stats.DashCooldownMult)
+		player:SetAttribute("DashCharges", stats.DashCharges)
+		player:SetAttribute("ChargeSpeed", stats.ChargeSpeed)
+	end
+end
+
+function FighterService.SetPerks(fighter: Fighter, owned: { [string]: number })
+	fighter.Perks = owned
+	fighter.Stats = Perks.Compute(owned)
+	FighterService.ApplyStats(fighter)
+end
+
+function FighterService.AddPerk(fighter: Fighter, perkId: string): boolean
+	local def = Perks.ById[perkId]
+	if not def then
+		return false
+	end
+	local stacks = fighter.Perks[perkId] or 0
+	if stacks >= def.MaxStacks then
+		return false
+	end
+	local owned = table.clone(fighter.Perks)
+	owned[perkId] = stacks + 1
+	FighterService.SetPerks(fighter, owned)
+	return true
+end
+
+function FighterService.SetHeat(fighter: Fighter, heat: number)
+	local cap = if fighter.Zone == "Lobby" then Config.Lobby.HeatCap else 999
+	fighter.Heat = math.clamp(heat, 0, cap)
+	if fighter.Model then
+		fighter.Model:SetAttribute("Heat", fighter.Heat)
+	end
+	FighterService.RefreshTag(fighter)
+end
+
+function FighterService.AddHeat(fighter: Fighter, amount: number)
+	FighterService.SetHeat(fighter, fighter.Heat + amount)
+end
+
+function FighterService.SetFrozen(fighter: Fighter, frozen: boolean)
+	fighter.Frozen = frozen
+	FighterService.RefreshMovement(fighter)
+end
+
+function FighterService.SetCharging(fighter: Fighter, charging: boolean)
+	if charging then
+		fighter.ChargeStart = os.clock()
+		if fighter.Model and not fighter.Highlight then
+			local highlight = Instance.new("Highlight")
+			highlight.Name = "ChargeGlow"
+			highlight.FillColor = Color3.fromRGB(255, 150, 40)
+			highlight.OutlineColor = Color3.fromRGB(255, 230, 120)
+			highlight.FillTransparency = 0.6
+			highlight.OutlineTransparency = 0
+			highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+			highlight.Parent = fighter.Model
+			fighter.Highlight = highlight
+		end
+	else
+		fighter.ChargeStart = nil
+		if fighter.Highlight then
+			fighter.Highlight:Destroy()
+			fighter.Highlight = nil
+		end
+	end
+	FighterService.RefreshMovement(fighter)
+end
+
+-- Physics owner applies the launch: the client for players, the server for bots.
+function FighterService.ApplyKnockback(fighter: Fighter, velocity: Vector3, tumble: number)
+	if not FighterService.IsAlive(fighter) then
+		return
+	end
+	fighter.TumbleUntil = os.clock() + tumble
+	fighter.DashUntil = 0
+	if fighter.ChargeStart then
+		FighterService.SetCharging(fighter, false)
+	end
+	if fighter.Player then
+		knockbackRemote:FireClient(fighter.Player, velocity, tumble)
+	else
+		Movement.Knockback(fighter.Humanoid :: Humanoid, fighter.Root :: BasePart, velocity, tumble)
+	end
+end
+
+function FighterService.Teleport(fighter: Fighter, cframe: CFrame)
+	if not FighterService.IsAlive(fighter) then
+		return
+	end
+	(fighter.Model :: Model):PivotTo(cframe)
+	FighterService.ApplyKnockback(fighter, Vector3.zero, 0)
+end
+
+-- Match lifecycle ---------------------------------------------------------------
+
+function FighterService.ResetForMatch(fighter: Fighter)
+	fighter.Points = 0
+	fighter.KOs = 0
+	fighter.Crowned = false
+	fighter.Placement = 0
+	fighter.LastHitBy = nil
+	fighter.LivesLeft = 0
+	FighterService.SetPerks(fighter, {})
+	FighterService.SetHeat(fighter, 0)
+end
+
+function FighterService.ResetForRound(fighter: Fighter)
+	fighter.Alive = false
+	fighter.LastHitBy = nil
+	fighter.LastHitTime = -math.huge
+	fighter.TumbleUntil = 0
+	fighter.VoidImmuneUntil = 0
+	fighter.DashUntil = 0
+	fighter.LivesLeft = fighter.Stats.ExtraLives
+	for i in fighter.DashReady do
+		fighter.DashReady[i] = 0
+	end
+	FighterService.SetCharging(fighter, false)
+	FighterService.SetHeat(fighter, 0)
+end
+
+function FighterService.Remove(fighter: Fighter)
+	FighterService.UnbindModel(fighter)
+	fighters[fighter.Id] = nil
+end
+
+return FighterService
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX00000015">
+					<Properties>
+						<string name="Name">RoundService</string>
+						<ProtectedString name="Source"><![CDATA[-- The match loop: Waiting -> Intermission -> [Countdown -> Live -> RoundEnd -> Draft] x N -> MatchEnd.
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage.Shared
+local Config = require(Shared.Config)
+local Net = require(Shared.Net)
+local Progression = require(Shared.Progression)
+
+local ArenaService = require(script.Parent.ArenaService)
+local BotService = require(script.Parent.BotService)
+local CombatService = require(script.Parent.CombatService)
+local DataService = require(script.Parent.DataService)
+local DraftService = require(script.Parent.DraftService)
+local EventService = require(script.Parent.EventService)
+local FighterService = require(script.Parent.FighterService)
+
+type Fighter = FighterService.Fighter
+
+local RoundService = {}
+
+local M = Config.Match
+local gameState = Net.GameState()
+local announceRemote = Net.Event("Announce")
+local feedRemote = Net.Event("KillFeed")
+local effectRemote = Net.Event("Effect")
+local resultsRemote = Net.Event("MatchResults")
+
+local rng = Random.new()
+local participants: { Fighter } = {}
+local eliminationOrder: { Fighter } = {}
+local lastPlacements: { Fighter } = {}
+
+-- Helpers ------------------------------------------------------------------------------
+
+local function setState(name: string, duration: number?, extra: { [string]: any }?)
+	gameState:SetAttribute("State", name)
+	gameState:SetAttribute("EndsAt", if duration then Workspace:GetServerTimeNow() + duration else 0)
+	if extra then
+		for key, value in extra do
+			gameState:SetAttribute(key, value)
+		end
+	end
+end
+
+local function announce(text: string, style: string, subtitle: string?, target: Player?)
+	if target then
+		announceRemote:FireClient(target, text, style, subtitle)
+	else
+		announceRemote:FireAllClients(text, style, subtitle)
+	end
+end
+
+local function publishScoreboard()
+	local rows = {}
+	for _, fighter in participants do
+		table.insert(rows, {
+			Id = fighter.Id,
+			Name = fighter.Name,
+			Points = fighter.Points,
+			KOs = fighter.KOs,
+			Alive = fighter.Alive,
+			Bot = fighter.IsBot,
+			Crown = fighter.Crowned,
+		})
+	end
+	table.sort(rows, function(a, b)
+		if a.Points ~= b.Points then
+			return a.Points > b.Points
+		end
+		return a.KOs > b.KOs
+	end)
+	gameState:SetAttribute("Scoreboard", HttpService:JSONEncode(rows))
+end
+
+local function realPlayers(): { Player }
+	local list = {}
+	for _, player in Players:GetPlayers() do
+		if FighterService.GetByPlayer(player) then
+			table.insert(list, player)
+		end
+	end
+	return list
+end
+
+local function hasRealParticipants(): boolean
+	for _, fighter in participants do
+		if fighter.Player and fighter.Player.Parent then
+			return true
+		end
+	end
+	return false
+end
+
+local function anyRealAlive(): boolean
+	for _, fighter in participants do
+		if fighter.Player and fighter.Alive then
+			return true
+		end
+	end
+	return false
+end
+
+local function aliveCount(): number
+	local count = 0
+	for _, fighter in participants do
+		if fighter.Alive then
+			count += 1
+		end
+	end
+	return count
+end
+
+local function sendToLobby(fighter: Fighter)
+	fighter.Alive = false
+	fighter.Zone = "None"
+	FighterService.SetFrozen(fighter, false)
+	if fighter.IsBot then
+		BotService.DespawnModel(fighter)
+	elseif fighter.Player and fighter.Player.Parent then
+		local player = fighter.Player
+		task.spawn(function()
+			local ok, err = pcall(function()
+				player:LoadCharacter()
+			end)
+			if not ok then
+				warn("[LaunchParty] LoadCharacter failed:", err)
+			end
+		end)
+	end
+end
+
+local function updateCrown()
+	local best, bestPoints, tie = nil, 0, false
+	for _, fighter in participants do
+		if fighter.Points > bestPoints then
+			best, bestPoints, tie = fighter, fighter.Points, false
+		elseif fighter.Points == bestPoints and bestPoints > 0 then
+			tie = true
+		end
+	end
+	for _, fighter in participants do
+		fighter.Crowned = (fighter == best and not tie)
+		FighterService.RefreshTag(fighter)
+	end
+end
+
+-- Eliminations -----------------------------------------------------------------------
+
+local function eliminate(fighter: Fighter)
+	if not fighter.Alive then
+		return
+	end
+	fighter.Alive = false
+	table.insert(eliminationOrder, fighter)
+	local position = if fighter.Root then fighter.Root.Position else ArenaService.GetCenter()
+
+	local killer: Fighter? = nil
+	local lastHitBy = fighter.LastHitBy
+	if lastHitBy and lastHitBy ~= fighter and os.clock() - fighter.LastHitTime <= M.KOCreditWindow then
+		if table.find(participants, lastHitBy) then
+			killer = lastHitBy
+		end
+	end
+	local bounty = false
+	if killer then
+		killer.KOs += 1
+		killer.Points += M.KOPoints
+		if fighter.Crowned then
+			killer.Points += M.BountyBonus
+			bounty = true
+		end
+		if killer.Player then
+			DataService.AddKO(killer.Player)
+		end
+	end
+
+	feedRemote:FireAllClients({
+		Killer = if killer then killer.Name else nil,
+		KillerId = if killer then killer.Id else nil,
+		Victim = fighter.Name,
+		VictimId = fighter.Id,
+		Bounty = bounty,
+	})
+	effectRemote:FireAllClients("KO", { Position = position, Victim = fighter.Id })
+	publishScoreboard()
+
+	task.delay(1.5, function()
+		if not fighter.Alive and fighter.Zone == "Arena" then
+			sendToLobby(fighter)
+		end
+	end)
+end
+
+local function secondWind(fighter: Fighter)
+	fighter.LivesLeft -= 1
+	fighter.VoidImmuneUntil = os.clock() + 1.5
+	local cframe = ArenaService.GetSafeCFrame()
+	FighterService.Teleport(fighter, cframe)
+	effectRemote:FireAllClients("SecondWind", { Position = cframe.Position, Fighter = fighter.Id })
+	feedRemote:FireAllClients({ Text = string.format("💨 %s used Second Wind!", fighter.Name) })
+	if fighter.Player then
+		announce("SECOND WIND!", "Small", "The void spat you back out.", fighter.Player)
+	end
+end
+
+local function checkEliminations()
+	local voidY = ArenaService.GetVoidY()
+	local now = os.clock()
+	for _, fighter in table.clone(participants) do
+		if fighter.Alive then
+			if not FighterService.IsAlive(fighter) or fighter.Zone ~= "Arena" then
+				eliminate(fighter)
+			elseif now > fighter.VoidImmuneUntil and (fighter.Root :: BasePart).Position.Y < voidY then
+				if fighter.LivesLeft > 0 then
+					secondWind(fighter)
+				else
+					eliminate(fighter)
+				end
+			end
+		end
+	end
+end
+
+-- Spawning ----------------------------------------------------------------------------
+
+local function spawnFighter(fighter: Fighter, cframe: CFrame): boolean
+	if fighter.IsBot then
+		if not BotService.SpawnModel(fighter, cframe) then
+			return false
+		end
+	else
+		local player = fighter.Player
+		if not player or not player.Parent then
+			return false
+		end
+		if not FighterService.IsAlive(fighter) or fighter.Model ~= player.Character then
+			local ok = pcall(function()
+				player:LoadCharacter()
+			end)
+			if not ok then
+				return false
+			end
+			local started = os.clock()
+			while
+				(fighter.Model ~= player.Character or not FighterService.IsAlive(fighter))
+				and os.clock() - started < 6
+			do
+				task.wait(0.05)
+			end
+			if not FighterService.IsAlive(fighter) then
+				return false
+			end
+		end
+		FighterService.Teleport(fighter, cframe)
+	end
+	fighter.Zone = "Arena"
+	fighter.Alive = true
+	FighterService.SetHeat(fighter, 0)
+	FighterService.ApplyStats(fighter)
+	FighterService.SetFrozen(fighter, true)
+	return true
+end
+
+local function addLateJoiners()
+	for _, player in realPlayers() do
+		local fighter = FighterService.GetByPlayer(player)
+		if fighter and not fighter.InMatch then
+			FighterService.ResetForMatch(fighter)
+			fighter.InMatch = true
+			table.insert(participants, fighter)
+			announce("You're in!", "Small", "Joining the match this round.", player)
+		end
+	end
+end
+
+local function setupParticipants()
+	table.clear(participants)
+	for _, player in realPlayers() do
+		local fighter = FighterService.GetByPlayer(player)
+		if fighter then
+			FighterService.ResetForMatch(fighter)
+			fighter.InMatch = true
+			table.insert(participants, fighter)
+		end
+	end
+	local botCount = math.clamp(M.MinFighters - #participants, 0, M.MaxBots)
+	for _ = 1, botCount do
+		local bot = BotService.CreateBot()
+		bot.InMatch = true
+		table.insert(participants, bot)
+	end
+end
+
+-- Phases -------------------------------------------------------------------------------
+
+local function waitPhase(seconds: number): boolean
+	local ends = os.clock() + seconds
+	while os.clock() < ends do
+		if #realPlayers() < M.MinRealPlayers then
+			return false
+		end
+		task.wait(0.2)
+	end
+	return true
+end
+
+local function computePlacements(): { Fighter }
+	local survivors = {}
+	for _, fighter in participants do
+		if fighter.Alive then
+			table.insert(survivors, fighter)
+		end
+	end
+	-- Time-out ties go to whoever is least cooked.
+	table.sort(survivors, function(a, b)
+		return a.Heat < b.Heat
+	end)
+	local placements = survivors
+	for i = #eliminationOrder, 1, -1 do
+		local fighter = eliminationOrder[i]
+		if table.find(participants, fighter) and not table.find(placements, fighter) then
+			table.insert(placements, fighter)
+		end
+	end
+	return placements
+end
+
+local function runRound(round: number)
+	addLateJoiners()
+	table.clear(eliminationOrder)
+
+	local shape = if round == 1 then "Disc" else ArenaService.ShapeNames[rng:NextInteger(1, #ArenaService.ShapeNames)]
+	ArenaService.Build(shape)
+	local event = EventService.Pick(round)
+	setState("Countdown", M.CountdownTime + 2, {
+		Round = round,
+		MaxRounds = M.RoundsPerMatch,
+		Event = event.Name,
+		EventDesc = event.Description,
+		Arena = ArenaService.ShapeTitles[shape] or shape,
+		SuddenDeath = false,
+	})
+
+	-- Spawn everyone in parallel (LoadCharacter yields).
+	local order = table.clone(participants)
+	for i = #order, 2, -1 do
+		local j = rng:NextInteger(1, i)
+		order[i], order[j] = order[j], order[i]
+	end
+	local spawns = ArenaService.GetSpawnCFrames(#order)
+	local pending = #order
+	for i, fighter in order do
+		FighterService.ResetForRound(fighter)
+		task.spawn(function()
+			local ok, result = pcall(spawnFighter, fighter, spawns[i])
+			if not ok then
+				warn("[LaunchParty] Spawn failed:", fighter.Name, result)
+			end
+			pending -= 1
+		end)
+	end
+	local spawnStarted = os.clock()
+	while pending > 0 and os.clock() - spawnStarted < 8 do
+		task.wait(0.05)
+	end
+	publishScoreboard()
+
+	announce(string.format("ROUND %d", round), "Big", event.Name .. " — " .. event.Description)
+	task.wait(2)
+	for count = M.CountdownTime, 1, -1 do
+		announce(tostring(count), "Count")
+		task.wait(1)
+	end
+
+	for _, fighter in participants do
+		if fighter.Alive then
+			FighterService.SetFrozen(fighter, false)
+		end
+	end
+	CombatService.SetArenaLive(true)
+	EventService.Start(event)
+	announce("LAUNCH!", "Big")
+	setState("Live", M.RoundTime)
+
+	local started = os.clock()
+	local lastCrumble = 0
+	local suddenDeath = false
+	while true do
+		task.wait(0.1)
+		checkEliminations()
+		if aliveCount() <= 1 or not hasRealParticipants() then
+			break
+		end
+		local elapsed = os.clock() - started
+		if elapsed >= M.RoundTime then
+			break
+		end
+		local spectatorsOnly = not anyRealAlive()
+		if elapsed >= M.SuddenDeathAt or spectatorsOnly then
+			if not suddenDeath then
+				suddenDeath = true
+				gameState:SetAttribute("SuddenDeath", true)
+				announce("SUDDEN DEATH", "Event", "The island is crumbling!")
+			end
+			local interval = if spectatorsOnly then M.FastCrumbleInterval else M.CrumbleInterval
+			if os.clock() - lastCrumble >= interval then
+				lastCrumble = os.clock()
+				ArenaService.CrumbleStep()
+			end
+		end
+	end
+
+	CombatService.SetArenaLive(false)
+	EventService.Stop()
+
+	local placements = computePlacements()
+	for index, fighter in placements do
+		fighter.Points += M.PlacementPoints[index] or 0
+		fighter.Placement = index
+	end
+	lastPlacements = placements
+	updateCrown()
+	publishScoreboard()
+
+	local winner = placements[1]
+	setState("RoundEnd", M.RoundEndTime)
+	if winner then
+		announce(winner.Name .. " WINS!", "Big", string.format("Round %d of %d", round, M.RoundsPerMatch))
+		effectRemote:FireAllClients("RoundWin", { Fighter = winner.Id })
+	end
+
+	task.wait(1.5)
+	for _, fighter in participants do
+		if fighter.Zone == "Arena" then
+			sendToLobby(fighter)
+		end
+	end
+	task.wait(M.RoundEndTime - 1.5)
+	ArenaService.Clear()
+end
+
+local function runDraft()
+	setState("Draft", M.DraftTime)
+	announce("DRAFT A PERK", "Big", "Lower placements get luckier cards.")
+	local luckBy: { [Fighter]: number } = {}
+	local count = #lastPlacements
+	for index, fighter in lastPlacements do
+		luckBy[fighter] = if count > 1 then (index - 1) / (count - 1) else 0.5
+	end
+	for _, fighter in participants do
+		if luckBy[fighter] == nil then
+			luckBy[fighter] = 1 -- late joiners / no-shows get the best odds
+		end
+	end
+	DraftService.Run(participants, luckBy, M.DraftTime)
+end
+
+local function finishMatch()
+	local ranked = table.clone(participants)
+	table.sort(ranked, function(a, b)
+		if a.Points ~= b.Points then
+			return a.Points > b.Points
+		end
+		return a.KOs > b.KOs
+	end)
+	local podium = {}
+	for index = 1, math.min(3, #ranked) do
+		local fighter = ranked[index]
+		table.insert(podium, { Name = fighter.Name, Points = fighter.Points, KOs = fighter.KOs, Bot = fighter.IsBot })
+	end
+	local champion = ranked[1]
+	setState("MatchEnd", M.MatchEndTime, { Champion = if champion then champion.Name else "" })
+	if champion then
+		announce("👑 " .. champion.Name .. " 👑", "Big", "is the LAUNCH PARTY champion!")
+	end
+
+	for index, fighter in ranked do
+		local player = fighter.Player
+		if player and player.Parent then
+			local rewards = DataService.AwardMatch(player, {
+				Points = fighter.Points,
+				KOs = fighter.KOs,
+				Placement = index,
+				Won = index == 1,
+			})
+			resultsRemote:FireClient(player, {
+				Podium = podium,
+				Placement = index,
+				Total = #ranked,
+				Points = fighter.Points,
+				KOs = fighter.KOs,
+				Rewards = rewards,
+			})
+		end
+	end
+	task.wait(M.MatchEndTime)
+end
+
+local function cleanupMatch()
+	CombatService.SetArenaLive(false)
+	EventService.Stop()
+	for _, fighter in participants do
+		if fighter.IsBot then
+			BotService.Remove(fighter)
+		else
+			fighter.InMatch = false
+			FighterService.ResetForMatch(fighter)
+			if fighter.Zone == "Arena" then
+				sendToLobby(fighter)
+			end
+		end
+	end
+	table.clear(participants)
+	table.clear(eliminationOrder)
+	table.clear(lastPlacements)
+	ArenaService.Clear()
+	publishScoreboard()
+end
+
+local function runMatch()
+	setState("Waiting", nil, { Round = 0, Event = "", EventDesc = "", SuddenDeath = false })
+	while #realPlayers() < M.MinRealPlayers do
+		task.wait(1)
+	end
+
+	setState("Intermission", M.FirstIntermission, { Round = 0, MaxRounds = M.RoundsPerMatch })
+	if not waitPhase(M.FirstIntermission) then
+		return
+	end
+
+	setupParticipants()
+	for round = 1, M.RoundsPerMatch do
+		if not hasRealParticipants() then
+			break
+		end
+		runRound(round)
+		if round < M.RoundsPerMatch and hasRealParticipants() then
+			runDraft()
+		end
+	end
+	if hasRealParticipants() then
+		finishMatch()
+	end
+end
+
+-- Players ------------------------------------------------------------------------------
+
+local function syncProgression(fighter: Fighter)
+	local player = fighter.Player
+	if not player then
+		return
+	end
+	local level = player:GetAttribute("Level") or 1
+	local tier, title = Progression.TitleFor(level)
+	fighter.Level = level
+	fighter.TrailTier = tier
+	fighter.TitleName = title
+	FighterService.RefreshCosmetics(fighter)
+end
+
+local function onCharacter(fighter: Fighter, character: Model)
+	local humanoid = character:WaitForChild("Humanoid", 10)
+	local root = character:WaitForChild("HumanoidRootPart", 10)
+	local player = fighter.Player
+	if not humanoid or not root or not player or player.Character ~= character then
+		return
+	end
+	if fighter.Alive then
+		-- Character was replaced mid-round (reset, etc.): that's an elimination, KO credit included.
+		eliminate(fighter)
+	end
+	FighterService.BindModel(fighter, character)
+	fighter.Zone = "Lobby"
+end
+
+local function onPlayerAdded(player: Player)
+	local fighter = FighterService.New("P" .. player.UserId, player.DisplayName, { Player = player })
+	player:GetAttributeChangedSignal("Level"):Connect(function()
+		syncProgression(fighter)
+	end)
+	player.CharacterAdded:Connect(function(character)
+		onCharacter(fighter, character)
+	end)
+	if player.Character then
+		task.spawn(onCharacter, fighter, player.Character)
+	end
+	task.spawn(DataService.Load, player)
+end
+
+local function onPlayerRemoving(player: Player)
+	local fighter = FighterService.GetByPlayer(player)
+	if not fighter then
+		return
+	end
+	if fighter.Alive then
+		eliminate(fighter)
+	end
+	local index = table.find(participants, fighter)
+	if index then
+		table.remove(participants, index)
+	end
+	FighterService.Remove(fighter)
+	publishScoreboard()
+end
+
+-- Lobby safety net: anyone who escapes or falls out of the lobby gets respawned.
+local function lobbyWatch()
+	while true do
+		task.wait(0.5)
+		local lobbyVoid = ArenaService.GetLobbyVoidY()
+		for _, fighter in FighterService.All() do
+			if fighter.Player and fighter.Zone == "Lobby" and FighterService.IsAlive(fighter) then
+				if (fighter.Root :: BasePart).Position.Y < lobbyVoid then
+					FighterService.Teleport(fighter, ArenaService.GetLobbySpawnCFrame())
+				end
+			end
+		end
+	end
+end
+
+function RoundService.Init()
+	Players.RespawnTime = 2
+	Players.PlayerAdded:Connect(onPlayerAdded)
+	Players.PlayerRemoving:Connect(onPlayerRemoving)
+	for _, player in Players:GetPlayers() do
+		task.spawn(onPlayerAdded, player)
+	end
+	task.spawn(lobbyWatch)
+	publishScoreboard()
+end
+
+function RoundService.Start()
+	task.spawn(function()
+		while true do
+			local ok, err = pcall(runMatch)
+			if not ok then
+				warn("[LaunchParty] Match loop error:", err)
+			end
+			local cleaned, cleanupErr = pcall(cleanupMatch)
+			if not cleaned then
+				warn("[LaunchParty] Cleanup error:", cleanupErr)
+			end
+			task.wait(if ok then 1 else 3)
+		end
+	end)
+end
+
+return RoundService
+]]></ProtectedString>
+					</Properties>
+				</Item>
+			</Item>
+		</Item>
+	</Item>
+	<Item class="StarterPlayer" referent="RBX00000016">
+		<Properties>
+			<string name="Name">StarterPlayer</string>
+			<float name="CameraMaxZoomDistance">45</float>
+		</Properties>
+		<Item class="StarterPlayerScripts" referent="RBX00000017">
+			<Properties>
+				<string name="Name">StarterPlayerScripts</string>
+			</Properties>
+			<Item class="LocalScript" referent="RBX00000018">
+				<Properties>
+					<string name="Name">Client</string>
+					<ProtectedString name="Source"><![CDATA[-- LAUNCH PARTY client bootstrap.
+local Controllers = script:WaitForChild("Controllers")
+
+local ORDER = { "EffectsController", "HUDController", "DraftController", "InputController" }
+
+for _, name in ORDER do
+	local ok, controller = pcall(require, Controllers:WaitForChild(name))
+	if not ok then
+		warn("[LaunchParty] Failed to load", name, controller)
+		continue
+	end
+	local started, err = pcall(controller.Start)
+	if not started then
+		warn("[LaunchParty] Failed to start", name, err)
+	end
+end
+]]></ProtectedString>
+				</Properties>
+				<Item class="Folder" referent="RBX00000019">
+					<Properties>
+						<string name="Name">Controllers</string>
+					</Properties>
+					<Item class="ModuleScript" referent="RBX0000001A">
+						<Properties>
+							<string name="Name">DraftController</string>
+							<ProtectedString name="Source"><![CDATA[-- Between-round card picker. Click, tap, press 1/2/3, or use a gamepad.
+local GuiService = game:GetService("GuiService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
+local Net = require(Shared:WaitForChild("Net"))
+
+local EffectsController = require(script.Parent.EffectsController)
+local UI = require(script.Parent.UI)
+
+local DraftController = {}
+
+local player = Players.LocalPlayer
+local pickRemote = Net.Event("DraftPick")
+
+local overlay: Frame? = nil
+local picked = false
+local cardButtons: { TextButton } = {}
+local timerConnection: RBXScriptConnection? = nil
+
+local function close()
+	if timerConnection then
+		timerConnection:Disconnect()
+		timerConnection = nil
+	end
+	if overlay then
+		overlay:Destroy()
+		overlay = nil
+	end
+	table.clear(cardButtons)
+	if GuiService.SelectedObject and not GuiService.SelectedObject:IsDescendantOf(player.PlayerGui) then
+		GuiService.SelectedObject = nil
+	end
+end
+
+local function choose(index: number)
+	if picked or not overlay or not cardButtons[index] then
+		return
+	end
+	picked = true
+	pickRemote:FireServer(index)
+	EffectsController.PlaySound(Config.Sounds.Pick, nil, 0.6, 1.2)
+	for i, button in cardButtons do
+		if i == index then
+			UI.pop(button, 1.15, 0.3)
+			local stroke = button:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Thickness = 5
+			end
+		else
+			UI.tween(button, 0.25, { BackgroundTransparency = 0.7 })
+			for _, child in button:GetDescendants() do
+				if child:IsA("TextLabel") then
+					UI.tween(child, 0.25, { TextTransparency = 0.6 })
+				end
+			end
+		end
+	end
+	local status = overlay:FindFirstChild("Status") :: TextLabel?
+	if status then
+		status.Text = "Locked in! Waiting for everyone else…"
+	end
+end
+
+local function buildCard(index: number, card: { [string]: any }, parent: Instance): TextButton
+	local color = Cosmetics.RarityColors[card.Rarity] or Color3.new(1, 1, 1)
+	local button = UI.new("TextButton", {
+		Name = "Card" .. index,
+		LayoutOrder = index,
+		Size = UDim2.new(0, 210, 0, 270),
+		BackgroundColor3 = Color3.fromRGB(28, 30, 46),
+		AutoButtonColor = false,
+		Text = "",
+		Parent = parent,
+	}, {
+		UI.corner(16),
+		UI.stroke(color, 3),
+		UI.new("UIPadding", {
+			PaddingTop = UDim.new(0, 12),
+			PaddingBottom = UDim.new(0, 12),
+			PaddingLeft = UDim.new(0, 12),
+			PaddingRight = UDim.new(0, 12),
+		}),
+	})
+	UI.new("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(170, 170, 190)),
+		Parent = button,
+	})
+
+	UI.label({
+		Name = "Rarity",
+		Size = UDim2.new(1, 0, 0, 22),
+		Font = UI.BodyFont,
+		TextColor3 = color,
+		Text = string.upper(card.Rarity),
+		Parent = button,
+	})
+	UI.label({
+		Name = "PerkName",
+		Position = UDim2.new(0, 0, 0, 30),
+		Size = UDim2.new(1, 0, 0, 56),
+		Text = card.Name,
+		Parent = button,
+	})
+	UI.label({
+		Name = "Description",
+		Position = UDim2.new(0, 0, 0, 96),
+		Size = UDim2.new(1, 0, 0, 100),
+		Font = UI.BodyFont,
+		TextScaled = false,
+		TextSize = 17,
+		TextWrapped = true,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextColor3 = Color3.fromRGB(220, 225, 240),
+		Text = card.Description,
+		Parent = button,
+	})
+	local owned = tonumber(card.Owned) or 0
+	UI.label({
+		Name = "Stacks",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, -24),
+		Size = UDim2.new(1, 0, 0, 18),
+		Font = UI.BodyFont,
+		TextColor3 = Color3.fromRGB(170, 175, 195),
+		Text = if owned > 0 then string.format("Owned %d / %d", owned, card.MaxStacks) else "NEW",
+		Parent = button,
+	})
+	UI.label({
+		Name = "Hotkey",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, 0),
+		Size = UDim2.new(1, 0, 0, 20),
+		Font = UI.BodyFont,
+		TextColor3 = color,
+		Text = string.format("[%d]", index),
+		Parent = button,
+	})
+
+	button.MouseEnter:Connect(function()
+		if not picked then
+			UI.pop(button, 1.06, 0.15)
+		end
+	end)
+	button.Activated:Connect(function()
+		choose(index)
+	end)
+	return button
+end
+
+local function open(cards: { { [string]: any } }, endsAt: number)
+	close()
+	picked = false
+	local gui = player.PlayerGui:FindFirstChild("LaunchPartyHUD") or player.PlayerGui
+
+	local root = UI.new("Frame", {
+		Name = "DraftOverlay",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.45,
+		ZIndex = 10,
+		Parent = gui,
+	})
+	overlay = root
+
+	UI.label({
+		Name = "Title",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.12, 0),
+		Size = UDim2.new(0.8, 0, 0, 60),
+		Text = "PICK A PERK",
+		TextColor3 = Color3.fromRGB(255, 210, 70),
+		Parent = root,
+	})
+	UI.label({
+		Name = "Status",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.12, 64),
+		Size = UDim2.new(0.8, 0, 0, 24),
+		Font = UI.BodyFont,
+		Text = "Perks stack for the rest of the match.",
+		Parent = root,
+	})
+
+	local row = UI.new("Frame", {
+		Name = "Cards",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.55),
+		Size = UDim2.new(0, 690, 0, 290),
+		BackgroundTransparency = 1,
+		Parent = root,
+	}, {
+		UI.new("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Padding = UDim.new(0, 20),
+		}),
+	})
+	-- Shrink the whole row on small (phone) screens.
+	local scale = UI.new("UIScale", { Parent = row })
+	local camera = Workspace.CurrentCamera
+	if camera then
+		scale.Scale = math.clamp(camera.ViewportSize.X / 760, 0.45, 1)
+	end
+
+	for index, card in cards do
+		local button = buildCard(index, card, row)
+		table.insert(cardButtons, button)
+		UI.pop(button, 0.3, 0.25 + index * 0.08)
+	end
+
+	local timerBack = UI.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.55, 170),
+		Size = UDim2.new(0, 400, 0, 10),
+		BackgroundColor3 = Color3.fromRGB(40, 42, 60),
+		Parent = root,
+	}, { UI.corner(5) })
+	local timerFill = UI.new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(255, 210, 70),
+		Parent = timerBack,
+	}, { UI.corner(5) })
+	local total = math.max(endsAt - Workspace:GetServerTimeNow(), 0.1)
+	timerConnection = RunService.RenderStepped:Connect(function()
+		local remaining = math.max(endsAt - Workspace:GetServerTimeNow(), 0)
+		timerFill.Size = UDim2.fromScale(remaining / total, 1)
+	end)
+
+	if UserInputService.GamepadEnabled and cardButtons[1] then
+		GuiService.SelectedObject = cardButtons[1]
+	end
+end
+
+function DraftController.Start()
+	Net.Event("DraftOffer").OnClientEvent:Connect(function(cards, endsAt)
+		if type(cards) == "table" and type(endsAt) == "number" and #cards > 0 then
+			open(cards, endsAt)
+		end
+	end)
+	Net.Event("DraftClose").OnClientEvent:Connect(close)
+
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed or not overlay then
+			return
+		end
+		local keys = { [Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2, [Enum.KeyCode.Three] = 3 }
+		local index = keys[input.KeyCode]
+		if index then
+			choose(index)
+		end
+	end)
+end
+
+return DraftController
+]]></ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX0000001B">
+						<Properties>
+							<string name="Name">EffectsController</string>
+							<ProtectedString name="Source"><![CDATA[-- Juice: applies knockback to our own character and renders every hit, blast and gust locally.
+local Debris = game:GetService("Debris")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local Movement = require(Shared:WaitForChild("Movement"))
+local Net = require(Shared:WaitForChild("Net"))
+
+local State = require(script.Parent.State)
+
+local EffectsController = {}
+
+local player = Players.LocalPlayer
+local random = Random.new()
+local fxFolder: Folder
+
+local shakeIntensity = 0
+local shakeDecay = 0
+
+local function getCharacter(): (Model?, Humanoid?, BasePart?)
+	local character = player.Character
+	if not character then
+		return nil, nil, nil
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not humanoid or not root or humanoid.Health <= 0 then
+		return nil, nil, nil
+	end
+	return character, humanoid, root
+end
+
+local function fxPart(props: { [string]: any }): Part
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.Material = Enum.Material.Neon
+	for key, value in props do
+		(part :: any)[key] = value
+	end
+	part.Parent = fxFolder
+	return part
+end
+
+function EffectsController.PlaySound(soundId: string, position: Vector3?, volume: number?, pitch: number?)
+	local sound = Instance.new("Sound")
+	sound.SoundId = soundId
+	sound.Volume = volume or 0.6
+	sound.PlaybackSpeed = pitch or random:NextNumber(0.92, 1.08)
+	if position then
+		local holder = Instance.new("Attachment")
+		holder.WorldPosition = position
+		holder.Parent = Workspace.Terrain
+		sound.RollOffMaxDistance = 220
+		sound.Parent = holder
+		Debris:AddItem(holder, 4)
+	else
+		sound.Parent = SoundService
+		Debris:AddItem(sound, 4)
+	end
+	sound:Play()
+end
+
+function EffectsController.Shake(intensity: number, duration: number)
+	if intensity > shakeIntensity then
+		shakeIntensity = intensity
+		shakeDecay = intensity / math.max(duration, 0.05)
+	end
+end
+
+function EffectsController.FovKick(amount: number)
+	local camera = Workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local base = 70
+	camera.FieldOfView = base + amount
+	TweenService:Create(camera, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		FieldOfView = base,
+	}):Play()
+end
+
+local function burst(position: Vector3, color: Color3, size: number, duration: number)
+	local ball = fxPart({
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.one,
+		CFrame = CFrame.new(position),
+		Color = color,
+		Transparency = 0.15,
+	})
+	TweenService:Create(ball, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.one * size,
+		Transparency = 1,
+	}):Play()
+	Debris:AddItem(ball, duration + 0.05)
+end
+
+local function ring(position: Vector3, color: Color3, radius: number, duration: number)
+	local disc = fxPart({
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.3, 2, 2),
+		CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = color,
+		Transparency = 0.2,
+	})
+	TweenService:Create(disc, TweenInfo.new(duration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+		Size = Vector3.new(0.3, radius * 2, radius * 2),
+		Transparency = 1,
+	}):Play()
+	Debris:AddItem(disc, duration + 0.05)
+end
+
+local function shards(position: Vector3, color: Color3, count: number, speed: number)
+	for _ = 1, count do
+		local shard = fxPart({
+			Anchored = false,
+			Size = Vector3.one * random:NextNumber(0.3, 0.7),
+			CFrame = CFrame.new(position) * CFrame.Angles(random:NextNumber(0, 6), random:NextNumber(0, 6), 0),
+			Color = color,
+		})
+		shard.AssemblyLinearVelocity = random:NextUnitVector() * speed + Vector3.new(0, speed * 0.5, 0)
+		Debris:AddItem(shard, 0.6)
+	end
+end
+
+local function popupText(position: Vector3, text: string, color: Color3)
+	local anchor = fxPart({ Size = Vector3.one * 0.2, Transparency = 1, CFrame = CFrame.new(position) })
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(110, 44)
+	gui.StudsOffset = Vector3.new(random:NextNumber(-1, 1), 2.5, 0)
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.Parent = anchor
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.Text = text
+	label.TextColor3 = color
+	label.TextStrokeTransparency = 0
+	label.Parent = gui
+	TweenService:Create(gui, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		StudsOffset = gui.StudsOffset + Vector3.new(0, 3, 0),
+	}):Play()
+	TweenService:Create(label, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	}):Play()
+	Debris:AddItem(anchor, 0.85)
+end
+
+-- Effect handlers ------------------------------------------------------------------------
+
+local handlers: { [string]: (any) -> () } = {}
+
+function handlers.Hit(data)
+	local position: Vector3 = data.Position
+	local speed: number = data.Speed or 30
+	local strength = math.clamp(speed / 160, 0.15, 1)
+	local charged = data.Kind == "Charged" or data.Kind == "Shockwave"
+	local color = if charged
+		then Color3.fromRGB(255, 160, 50)
+		elseif data.Kind == "Bump" then Color3.fromRGB(90, 220, 255)
+		else Color3.new(1, 1, 1)
+	burst(position, color, 3 + strength * 7, 0.25)
+	shards(position, color, math.floor(4 + strength * 8), 25 + strength * 40)
+	if data.Heat and data.Heat > 0 then
+		popupText(position, "+" .. data.Heat .. "%", if charged then Color3.fromRGB(255, 170, 60) else Color3.new(1, 1, 1))
+	end
+	EffectsController.PlaySound(Config.Sounds.Hit, position, 0.5 + strength * 0.6, 1.25 - strength * 0.4)
+
+	local myId = State.MyId()
+	if data.Attacker == myId then
+		EffectsController.Shake(0.25 + strength * 0.5, 0.18)
+		if charged then
+			EffectsController.FovKick(6 + strength * 6)
+		end
+		local now = os.clock()
+		State.Combo = if now - State.LastComboHit < 1.6 then State.Combo + 1 else 1
+		State.LastComboHit = now
+		State.ComboChanged:Fire(State.Combo)
+	elseif data.Victim == myId then
+		EffectsController.Shake(0.4 + strength * 1.1, 0.3)
+	end
+end
+
+function handlers.KO(data)
+	local position: Vector3 = data.Position
+	local beamHeight = 160
+	local beam = fxPart({
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(beamHeight, 6, 6),
+		CFrame = CFrame.new(position + Vector3.new(0, beamHeight / 2 - 10, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(255, 220, 90),
+		Transparency = 0.1,
+	})
+	TweenService:Create(beam, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(beamHeight, 0.2, 0.2),
+		Transparency = 1,
+	}):Play()
+	Debris:AddItem(beam, 1)
+	burst(position, Color3.fromRGB(255, 240, 160), 26, 0.5)
+	ring(position, Color3.fromRGB(255, 200, 80), 30, 0.7)
+	EffectsController.PlaySound(Config.Sounds.KO, position, 1, 1)
+	EffectsController.Shake(0.5, 0.35)
+end
+
+function handlers.Meteor(data)
+	local position: Vector3 = data.Position
+	burst(position, Color3.fromRGB(255, 120, 40), (data.Radius or 10) * 2, 0.45)
+	ring(position, Color3.fromRGB(255, 80, 40), (data.Radius or 10) * 1.4, 0.5)
+	shards(position, Color3.fromRGB(90, 60, 45), 14, 60)
+	EffectsController.PlaySound(Config.Sounds.Boom, position, 1.2, 0.6)
+	local _, _, root = getCharacter()
+	if root and (root.Position - position).Magnitude < 45 then
+		EffectsController.Shake(0.8, 0.4)
+	end
+end
+
+function handlers.Shockwave(data)
+	ring(data.Position, Color3.fromRGB(255, 170, 60), data.Radius or 12, 0.4)
+	burst(data.Position, Color3.fromRGB(255, 200, 120), 8, 0.3)
+end
+
+function handlers.Dash(data)
+	if data.Fighter == State.MyId() then
+		return
+	end
+	ring(data.Position - Vector3.new(0, 2.5, 0), Color3.fromRGB(200, 240, 255), 4, 0.3)
+end
+
+function handlers.SecondWind(data)
+	burst(data.Position, Color3.fromRGB(120, 255, 230), 14, 0.5)
+	ring(data.Position, Color3.fromRGB(120, 255, 230), 12, 0.6)
+end
+
+local function windStreaks(direction: Vector3, center: Vector3, duration: number, transparency: number)
+	local right = Vector3.new(-direction.Z, 0, direction.X)
+	for _ = 1, 26 do
+		local start = center
+			- direction * 60
+			+ right * random:NextNumber(-55, 55)
+			+ Vector3.new(0, random:NextNumber(1, 12), 0)
+		local streak = fxPart({
+			Size = Vector3.new(0.25, 0.25, random:NextNumber(6, 14)),
+			CFrame = CFrame.lookAt(start, start + direction),
+			Color = Color3.new(1, 1, 1),
+			Transparency = transparency,
+		})
+		TweenService:Create(streak, TweenInfo.new(duration * random:NextNumber(0.7, 1.2), Enum.EasingStyle.Linear), {
+			CFrame = CFrame.lookAt(start + direction * 120, start + direction * 121),
+			Transparency = 1,
+		}):Play()
+		Debris:AddItem(streak, duration * 1.3)
+	end
+end
+
+function handlers.GustWarning(data)
+	windStreaks(data.Direction, data.Center, 1.6, 0.8)
+	State.BigMessage:Fire("💨 GUST INCOMING", "Small", "Brace yourself!")
+end
+
+function handlers.Gust(data)
+	windStreaks(data.Direction, data.Center, 0.7, 0.3)
+end
+
+function handlers.RoundWin(data)
+	if data.Fighter == State.MyId() then
+		EffectsController.FovKick(-8)
+	end
+end
+
+-- Lifecycle --------------------------------------------------------------------------------
+
+function EffectsController.Start()
+	fxFolder = Instance.new("Folder")
+	fxFolder.Name = "ClientFX"
+	fxFolder.Parent = Workspace
+
+	Net.Event("Knockback").OnClientEvent:Connect(function(velocity, tumble)
+		if typeof(velocity) ~= "Vector3" or type(tumble) ~= "number" then
+			return
+		end
+		local _, humanoid, root = getCharacter()
+		if not humanoid or not root then
+			return
+		end
+		State.Charging = false
+		if velocity.Magnitude > 0.5 then
+			State.LastKnockback = os.clock()
+		end
+		Movement.Knockback(humanoid, root, velocity, tumble)
+	end)
+
+	Net.Event("Effect").OnClientEvent:Connect(function(kind, data)
+		local handler = handlers[kind]
+		if handler and type(data) == "table" then
+			local ok, err = pcall(handler, data)
+			if not ok then
+				warn("[LaunchParty] Effect error:", kind, err)
+			end
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function(dt)
+		local _, humanoid = getCharacter()
+		if shakeIntensity > 0 then
+			shakeIntensity = math.max(0, shakeIntensity - shakeDecay * dt)
+			if humanoid then
+				humanoid.CameraOffset = random:NextUnitVector() * shakeIntensity * 0.6
+			end
+		elseif humanoid and humanoid.CameraOffset ~= Vector3.zero then
+			humanoid.CameraOffset = Vector3.zero
+		end
+	end)
+end
+
+return EffectsController
+]]></ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX0000001C">
+						<Properties>
+							<string name="Name">HUDController</string>
+							<ProtectedString name="Source"><![CDATA[-- The whole heads-up display, built in code.
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
+local Net = require(Shared:WaitForChild("Net"))
+
+local State = require(script.Parent.State)
+local UI = require(script.Parent.UI)
+
+local HUDController = {}
+
+local player = Players.LocalPlayer
+local gameState = Net.GameState()
+
+local gui: ScreenGui
+local refs: { [string]: any } = {}
+local lastHeat = 0
+local announceToken = 0
+
+local STATE_TITLES = {
+	Waiting = "WAITING FOR PLAYERS",
+	Intermission = "MATCH STARTING",
+	Countdown = "GET READY",
+	Live = "FIGHT!",
+	RoundEnd = "ROUND OVER",
+	Draft = "DRAFT PHASE",
+	MatchEnd = "MATCH OVER",
+}
+
+-- Construction ------------------------------------------------------------------------------
+
+local function buildTopBar()
+	local bar = UI.new("Frame", {
+		Name = "TopBar",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 8),
+		Size = UDim2.new(0.6, 0, 0, 66),
+		BackgroundColor3 = UI.Panel,
+		BackgroundTransparency = 0.2,
+		Parent = gui,
+	}, { UI.corner(14), UI.stroke(Color3.fromRGB(255, 205, 60), 2, 0.3) })
+	UI.new("UISizeConstraint", { MinSize = Vector2.new(300, 66), MaxSize = Vector2.new(480, 66), Parent = bar })
+
+	refs.StateLabel = UI.label({
+		Name = "State",
+		Position = UDim2.new(0, 16, 0, 6),
+		Size = UDim2.new(0.72, -16, 0, 30),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Color3.fromRGB(255, 210, 70),
+		Text = "LAUNCH PARTY",
+		Parent = bar,
+	})
+	refs.InfoLabel = UI.label({
+		Name = "Info",
+		Position = UDim2.new(0, 16, 0, 38),
+		Size = UDim2.new(0.72, -16, 0, 20),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Font = UI.BodyFont,
+		TextColor3 = Color3.fromRGB(220, 225, 240),
+		Text = "",
+		Parent = bar,
+	})
+	refs.TimerLabel = UI.label({
+		Name = "Timer",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -16, 0.5, 0),
+		Size = UDim2.new(0.26, 0, 0, 44),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Text = "",
+		Parent = bar,
+	})
+end
+
+local function buildHeatPanel()
+	local panel = UI.new("Frame", {
+		Name = "HeatPanel",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -18),
+		Size = UDim2.new(0, 260, 0, 120),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	refs.HeatLabel = UI.label({
+		Name = "Heat",
+		Size = UDim2.new(1, 0, 0, 70),
+		Text = "0%",
+		Parent = panel,
+	})
+	UI.textStroke(3).Parent = refs.HeatLabel
+	UI.label({
+		Name = "Caption",
+		Position = UDim2.new(0, 0, 0, 66),
+		Size = UDim2.new(1, 0, 0, 16),
+		Font = UI.BodyFont,
+		TextColor3 = Color3.fromRGB(210, 215, 230),
+		Text = "HEAT",
+		Parent = panel,
+	})
+
+	local pips = UI.new("Frame", {
+		Name = "DashPips",
+		Position = UDim2.new(0.5, 0, 0, 88),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Size = UDim2.new(1, 0, 0, 10),
+		BackgroundTransparency = 1,
+		Parent = panel,
+	}, {
+		UI.new("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			Padding = UDim.new(0, 6),
+		}),
+	})
+	refs.DashPips = pips
+
+	local chargeBack = UI.new("Frame", {
+		Name = "Charge",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 104),
+		Size = UDim2.new(0.8, 0, 0, 10),
+		BackgroundColor3 = Color3.fromRGB(30, 30, 40),
+		BackgroundTransparency = 0.2,
+		Visible = false,
+		Parent = panel,
+	}, { UI.corner(5) })
+	refs.ChargeBack = chargeBack
+	refs.ChargeFill = UI.new("Frame", {
+		Size = UDim2.new(0, 0, 1, 0),
+		BackgroundColor3 = Color3.fromRGB(255, 170, 50),
+		Parent = chargeBack,
+	}, { UI.corner(5) })
+
+	refs.ComboLabel = UI.label({
+		Name = "Combo",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0, -6),
+		Size = UDim2.new(1, 0, 0, 34),
+		TextColor3 = Color3.fromRGB(255, 220, 90),
+		Text = "",
+		Visible = false,
+		Parent = panel,
+	})
+	UI.textStroke(2).Parent = refs.ComboLabel
+end
+
+local function buildScoreboard()
+	local board = UI.new("Frame", {
+		Name = "Scoreboard",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -12, 0, 90),
+		Size = UDim2.new(0, 230, 0, 30),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = UI.Panel,
+		BackgroundTransparency = 0.3,
+		Parent = gui,
+	}, {
+		UI.corner(12),
+		UI.new("UIPadding", {
+			PaddingTop = UDim.new(0, 8),
+			PaddingBottom = UDim.new(0, 8),
+			PaddingLeft = UDim.new(0, 10),
+			PaddingRight = UDim.new(0, 10),
+		}),
+		UI.new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3) }),
+	})
+	UI.label({
+		Name = "Title",
+		LayoutOrder = 0,
+		Size = UDim2.new(1, 0, 0, 20),
+		TextColor3 = Color3.fromRGB(255, 210, 70),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "SCORES",
+		Parent = board,
+	})
+	refs.Scoreboard = board
+end
+
+local function buildKillFeed()
+	refs.KillFeed = UI.new("Frame", {
+		Name = "KillFeed",
+		Position = UDim2.new(0, 12, 0, 90),
+		Size = UDim2.new(0, 320, 0, 200),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	}, {
+		UI.new("UIListLayout", {
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Padding = UDim.new(0, 4),
+		}),
+	})
+end
+
+local function buildAnnouncement()
+	refs.Announce = UI.label({
+		Name = "Announce",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.32, 0),
+		Size = UDim2.new(0.8, 0, 0, 96),
+		Text = "",
+		Visible = false,
+		Parent = gui,
+	})
+	UI.new("UISizeConstraint", { MaxSize = Vector2.new(900, 96), Parent = refs.Announce })
+	UI.textStroke(4).Parent = refs.Announce
+	refs.AnnounceSub = UI.label({
+		Name = "AnnounceSub",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.32, 52),
+		Size = UDim2.new(0.7, 0, 0, 30),
+		Font = UI.BodyFont,
+		Text = "",
+		Visible = false,
+		Parent = gui,
+	})
+	UI.new("UISizeConstraint", { MaxSize = Vector2.new(760, 30), Parent = refs.AnnounceSub })
+	UI.textStroke(2).Parent = refs.AnnounceSub
+end
+
+local function buildProfile()
+	local panel = UI.new("Frame", {
+		Name = "Profile",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 12, 1, -12),
+		Size = UDim2.new(0, 220, 0, 52),
+		BackgroundColor3 = UI.Panel,
+		BackgroundTransparency = 0.3,
+		Parent = gui,
+	}, { UI.corner(12) })
+	refs.LevelLabel = UI.label({
+		Position = UDim2.new(0, 10, 0, 6),
+		Size = UDim2.new(1, -20, 0, 22),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "LV 1 · Rookie",
+		Parent = panel,
+	})
+	local barBack = UI.new("Frame", {
+		Position = UDim2.new(0, 10, 0, 34),
+		Size = UDim2.new(1, -20, 0, 8),
+		BackgroundColor3 = Color3.fromRGB(45, 48, 66),
+		Parent = panel,
+	}, { UI.corner(4) })
+	refs.XPFill = UI.new("Frame", {
+		Size = UDim2.new(0, 0, 1, 0),
+		BackgroundColor3 = Color3.fromRGB(140, 255, 90),
+		Parent = barBack,
+	}, { UI.corner(4) })
+
+	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	refs.Controls = UI.label({
+		Name = "Controls",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 12, 1, -70),
+		Size = UDim2.new(0, 300, 0, 18),
+		Font = UI.BodyFont,
+		TextColor3 = Color3.fromRGB(200, 205, 220),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTransparency = 0.2,
+		Text = if touch then "PUNCH: tap/hold · DASH: button" else "CLICK punch · HOLD charge · Q/SHIFT dash",
+		Parent = gui,
+	})
+end
+
+-- Updates -------------------------------------------------------------------------------------
+
+local function refreshProfile()
+	local level = player:GetAttribute("Level") or 1
+	local title = player:GetAttribute("Title") or "Rookie"
+	local into = player:GetAttribute("XPInto") or 0
+	local needed = player:GetAttribute("XPNeeded") or 100
+	refs.LevelLabel.Text = string.format("LV %d · %s", level, title)
+	UI.tween(refs.XPFill, 0.4, { Size = UDim2.new(math.clamp(into / math.max(needed, 1), 0, 1), 0, 1, 0) })
+end
+
+local function refreshScoreboard()
+	local board = refs.Scoreboard
+	for _, child in board:GetChildren() do
+		if child:IsA("TextLabel") and child.Name == "Row" then
+			child:Destroy()
+		end
+	end
+	local raw = gameState:GetAttribute("Scoreboard")
+	local ok, rows = pcall(function()
+		return HttpService:JSONDecode(raw or "[]")
+	end)
+	if not ok or type(rows) ~= "table" or #rows == 0 then
+		board.Visible = false
+		return
+	end
+	board.Visible = true
+	local myId = State.MyId()
+	for index, row in rows do
+		local crown = if row.Crown then "👑 " else ""
+		local name = tostring(row.Name)
+		if #name > 14 then
+			name = string.sub(name, 1, 13) .. "…"
+		end
+		local label = UI.label({
+			Name = "Row",
+			LayoutOrder = index,
+			Size = UDim2.new(1, 0, 0, 20),
+			Font = UI.BodyFont,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			RichText = true,
+			TextColor3 = if row.Id == myId
+				then Color3.fromRGB(120, 230, 255)
+				elseif row.Alive then Color3.new(1, 1, 1)
+				else Color3.fromRGB(140, 145, 160),
+			Text = string.format('%s%s<font color="#FFD24A">  %d pts</font>  <font color="#9AA0B4">%d KO</font>', crown, name, row.Points or 0, row.KOs or 0),
+			Parent = board,
+		})
+		label.TextScaled = true
+	end
+end
+
+local function refreshState()
+	local stateName = gameState:GetAttribute("State") or "Waiting"
+	local round = gameState:GetAttribute("Round") or 0
+	local maxRounds = gameState:GetAttribute("MaxRounds") or Config.Match.RoundsPerMatch
+	local eventName = gameState:GetAttribute("Event") or ""
+	local arenaName = gameState:GetAttribute("Arena") or ""
+
+	if (stateName == "Live" or stateName == "Countdown" or stateName == "RoundEnd") and round > 0 then
+		local suffix = if gameState:GetAttribute("SuddenDeath") then " · SUDDEN DEATH" else ""
+		refs.StateLabel.Text = string.format("ROUND %d / %d%s", round, maxRounds, suffix)
+		refs.InfoLabel.Text = string.format("%s · %s", eventName, arenaName)
+	elseif stateName == "Draft" then
+		refs.StateLabel.Text = STATE_TITLES.Draft
+		refs.InfoLabel.Text = string.format("Next: round %d of %d", round + 1, maxRounds)
+	elseif stateName == "MatchEnd" then
+		refs.StateLabel.Text = STATE_TITLES.MatchEnd
+		refs.InfoLabel.Text = "Champion: " .. tostring(gameState:GetAttribute("Champion") or "?")
+	else
+		refs.StateLabel.Text = STATE_TITLES[stateName] or stateName
+		refs.InfoLabel.Text = if stateName == "Waiting"
+			then "Punch the dummies while you wait!"
+			else "Bots fill empty slots. Get comfy in the lobby."
+	end
+end
+
+local function updateDashPips()
+	local charges = player:GetAttribute("DashCharges") or 1
+	local pips = refs.DashPips
+	local existing = {}
+	for _, child in pips:GetChildren() do
+		if child:IsA("Frame") then
+			table.insert(existing, child)
+		end
+	end
+	while #existing < charges do
+		local pip = UI.new("Frame", {
+			Size = UDim2.new(0, 34, 0, 8),
+			BackgroundColor3 = Color3.fromRGB(90, 220, 255),
+			Parent = pips,
+		}, { UI.corner(4) })
+		table.insert(existing, pip)
+	end
+	while #existing > charges do
+		table.remove(existing):Destroy()
+	end
+	local now = os.clock()
+	for index, pip in existing do
+		local ready = (State.DashReady[index] or 0) <= now
+		pip.BackgroundColor3 = if ready then Color3.fromRGB(90, 220, 255) else Color3.fromRGB(60, 64, 84)
+	end
+end
+
+local function renderStep()
+	-- Timer
+	local endsAt = gameState:GetAttribute("EndsAt") or 0
+	if endsAt > 0 then
+		local remaining = endsAt - Workspace:GetServerTimeNow()
+		refs.TimerLabel.Text = UI.formatTime(remaining)
+		local live = gameState:GetAttribute("State") == "Live"
+		refs.TimerLabel.TextColor3 = if live and remaining <= 10 then Color3.fromRGB(255, 90, 80) else Color3.new(1, 1, 1)
+	else
+		refs.TimerLabel.Text = ""
+	end
+
+	-- Heat
+	local character = player.Character
+	local heat = if character then character:GetAttribute("Heat") or 0 else 0
+	refs.HeatLabel.Text = string.format("%d%%", math.floor(heat))
+	refs.HeatLabel.TextColor3 = Cosmetics.HeatColor(heat)
+	if heat > lastHeat + 0.5 then
+		UI.pop(refs.HeatLabel, 1.25 + math.min((heat - lastHeat) / 40, 0.5), 0.3)
+	end
+	lastHeat = heat
+
+	-- Charge bar
+	if State.Charging then
+		local chargeSpeed = player:GetAttribute("ChargeSpeed") or 1
+		local alpha = math.clamp((os.clock() - State.ChargeStart) * chargeSpeed / Config.Combat.ChargeMaxTime, 0, 1)
+		refs.ChargeBack.Visible = true
+		refs.ChargeFill.Size = UDim2.new(alpha, 0, 1, 0)
+		refs.ChargeFill.BackgroundColor3 = if alpha >= 1
+			then Color3.fromRGB(255, 70, 50)
+			elseif alpha >= Config.Combat.ChargeThreshold then Color3.fromRGB(255, 170, 50)
+			else Color3.fromRGB(200, 200, 210)
+	else
+		refs.ChargeBack.Visible = false
+	end
+
+	updateDashPips()
+
+	if refs.ComboLabel.Visible and os.clock() - State.LastComboHit > 1.6 then
+		refs.ComboLabel.Visible = false
+	end
+end
+
+-- Messages -------------------------------------------------------------------------------------
+
+function HUDController.Announce(text: string, style: string?, subtitle: string?)
+	announceToken += 1
+	local token = announceToken
+	local label, sub = refs.Announce, refs.AnnounceSub
+	style = style or "Big"
+
+	label.Text = text
+	label.Visible = true
+	label.TextTransparency = 0
+	label.Size = UDim2.new(0.8, 0, 0, if style == "Small" then 56 elseif style == "Count" then 120 else 96)
+	label.TextColor3 = if style == "Event"
+		then Color3.fromRGB(255, 120, 80)
+		elseif style == "Count" then Color3.fromRGB(255, 220, 90)
+		else Color3.new(1, 1, 1)
+	UI.pop(label, if style == "Count" then 1.8 else 1.4, 0.3)
+
+	sub.Text = subtitle or ""
+	sub.Visible = subtitle ~= nil and subtitle ~= ""
+	sub.TextTransparency = 0
+
+	local hold = if style == "Count" then 0.75 elseif style == "Small" then 1.6 else 2.2
+	task.delay(hold, function()
+		if token ~= announceToken then
+			return
+		end
+		UI.tween(label, 0.3, { TextTransparency = 1 })
+		UI.tween(sub, 0.3, { TextTransparency = 1 })
+		task.wait(0.3)
+		if token == announceToken then
+			label.Visible = false
+			sub.Visible = false
+		end
+	end)
+end
+
+local feedCount = 0
+function HUDController.Feed(text: string, color: Color3?)
+	feedCount += 1
+	local entry = UI.label({
+		LayoutOrder = feedCount,
+		Size = UDim2.new(1, 0, 0, 24),
+		Font = UI.BodyFont,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = color or Color3.new(1, 1, 1),
+		BackgroundColor3 = UI.Panel,
+		BackgroundTransparency = 0.35,
+		Text = "  " .. text,
+		Parent = refs.KillFeed,
+	})
+	UI.corner(8).Parent = entry
+	UI.pop(entry, 1.15, 0.2)
+	local entries = {}
+	for _, child in refs.KillFeed:GetChildren() do
+		if child:IsA("TextLabel") then
+			table.insert(entries, child)
+		end
+	end
+	table.sort(entries, function(a, b)
+		return a.LayoutOrder < b.LayoutOrder
+	end)
+	while #entries > 6 do
+		table.remove(entries, 1):Destroy()
+	end
+	task.delay(6, function()
+		if entry.Parent then
+			UI.tween(entry, 0.4, { TextTransparency = 1, BackgroundTransparency = 1 })
+			task.wait(0.4)
+			entry:Destroy()
+		end
+	end)
+end
+
+local function onKillFeed(data)
+	if type(data) ~= "table" then
+		return
+	end
+	if data.Text then
+		HUDController.Feed(tostring(data.Text), Color3.fromRGB(255, 220, 120))
+		return
+	end
+	local myId = State.MyId()
+	local victim = tostring(data.Victim)
+	if data.Killer then
+		local killer = tostring(data.Killer)
+		local bounty = if data.Bounty then "  👑 BOUNTY!" else ""
+		HUDController.Feed(string.format("💥 %s launched %s%s", killer, victim, bounty))
+		if data.KillerId == myId then
+			HUDController.Announce("KO!", "Big", if data.Bounty then "Bounty claimed! +1 bonus point" else "Launched " .. victim)
+		end
+	else
+		HUDController.Feed(string.format("🕳️ %s fell into the void", victim), Color3.fromRGB(200, 205, 220))
+	end
+	if data.VictimId == myId then
+		HUDController.Announce("LAUNCHED!", "Event", if data.Killer then "by " .. tostring(data.Killer) else "Watch your step...")
+	end
+end
+
+-- Match results ---------------------------------------------------------------------------------
+
+local function showResults(data)
+	if type(data) ~= "table" then
+		return
+	end
+	if refs.Results then
+		refs.Results:Destroy()
+	end
+	local panel = UI.new("Frame", {
+		Name = "Results",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.55, 0),
+		Size = UDim2.new(0, 420, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = UI.Panel,
+		BackgroundTransparency = 0.08,
+		Parent = gui,
+	}, {
+		UI.corner(16),
+		UI.stroke(Color3.fromRGB(255, 205, 60), 3),
+		UI.new("UIPadding", {
+			PaddingTop = UDim.new(0, 14),
+			PaddingBottom = UDim.new(0, 14),
+			PaddingLeft = UDim.new(0, 18),
+			PaddingRight = UDim.new(0, 18),
+		}),
+		UI.new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) }),
+	})
+	refs.Results = panel
+
+	local order = 0
+	local function line(text: string, height: number, color: Color3?, font: Enum.Font?)
+		order += 1
+		UI.label({
+			LayoutOrder = order,
+			Size = UDim2.new(1, 0, 0, height),
+			Text = text,
+			TextColor3 = color or Color3.new(1, 1, 1),
+			Font = font or UI.Font,
+			Parent = panel,
+		})
+	end
+
+	local placement = data.Placement or 0
+	local ordinal = ({ "1st", "2nd", "3rd" })[placement] or (tostring(placement) .. "th")
+	line(if placement == 1 then "🏆 CHAMPION! 🏆" else "You placed " .. ordinal, 40, Color3.fromRGB(255, 210, 70))
+	line(string.format("%d points · %d KOs", data.Points or 0, data.KOs or 0), 22, nil, UI.BodyFont)
+	local medals = { "🥇", "🥈", "🥉" }
+	for index, entry in data.Podium or {} do
+		line(string.format("%s %s — %d pts", medals[index] or "", tostring(entry.Name), entry.Points or 0), 22, nil, UI.BodyFont)
+	end
+
+	local rewards = data.Rewards
+	if type(rewards) == "table" then
+		line(string.format("+%d XP", rewards.XP or 0), 34, Color3.fromRGB(140, 255, 90))
+		for _, text in rewards.Breakdown or {} do
+			line(tostring(text), 18, Color3.fromRGB(190, 195, 210), UI.BodyFont)
+		end
+		if (rewards.NewLevel or 0) > (rewards.OldLevel or 0) then
+			line(string.format("LEVEL UP!  %d → %d", rewards.OldLevel, rewards.NewLevel), 32, Color3.fromRGB(90, 230, 255))
+		end
+		for _, unlock in rewards.Unlocks or {} do
+			line("🔓 " .. tostring(unlock), 22, Color3.fromRGB(255, 184, 40), UI.BodyFont)
+		end
+		if rewards.Persistent == false then
+			line("(Progress isn't saved in this session)", 16, Color3.fromRGB(160, 160, 170), UI.BodyFont)
+		end
+	end
+
+	UI.pop(panel, 0.6, 0.4)
+	task.delay(Config.Match.MatchEndTime + 1, function()
+		if refs.Results == panel then
+			panel:Destroy()
+			refs.Results = nil
+		end
+	end)
+end
+
+-- Lifecycle -------------------------------------------------------------------------------------
+
+function HUDController.Start()
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+	end)
+
+	gui = UI.new("ScreenGui", {
+		Name = "LaunchPartyHUD",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		Parent = player:WaitForChild("PlayerGui"),
+	})
+	buildTopBar()
+	buildHeatPanel()
+	buildScoreboard()
+	buildKillFeed()
+	buildAnnouncement()
+	buildProfile()
+
+	refreshState()
+	refreshScoreboard()
+	refreshProfile()
+
+	-- Our own heat is on the HUD, so hide the floating tag above our head.
+	local function hideOwnTag(character: Model)
+		local tag = character:WaitForChild("FighterTag", 15)
+		if tag and tag:IsA("BillboardGui") then
+			tag.Enabled = false
+		end
+	end
+	player.CharacterAdded:Connect(hideOwnTag)
+	if player.Character then
+		task.spawn(hideOwnTag, player.Character)
+	end
+
+	gameState.AttributeChanged:Connect(function(attribute)
+		if attribute == "Scoreboard" then
+			refreshScoreboard()
+		else
+			refreshState()
+		end
+	end)
+	for _, attribute in { "Level", "Title", "XPInto", "XPNeeded" } do
+		player:GetAttributeChangedSignal(attribute):Connect(refreshProfile)
+	end
+
+	Net.Event("Announce").OnClientEvent:Connect(function(text, style, subtitle)
+		if type(text) == "string" then
+			HUDController.Announce(text, style, subtitle)
+		end
+	end)
+	Net.Event("KillFeed").OnClientEvent:Connect(onKillFeed)
+	Net.Event("MatchResults").OnClientEvent:Connect(showResults)
+
+	State.BigMessage.Event:Connect(function(text, style, subtitle)
+		HUDController.Announce(text, style, subtitle)
+	end)
+	State.ComboChanged.Event:Connect(function(combo)
+		if combo >= 2 then
+			refs.ComboLabel.Text = string.format("x%d COMBO!", combo)
+			refs.ComboLabel.Visible = true
+			UI.pop(refs.ComboLabel, 1.5, 0.25)
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function()
+		local ok, err = pcall(renderStep)
+		if not ok then
+			warn("[LaunchParty] HUD error:", err)
+		end
+	end)
+end
+
+return HUDController
+]]></ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX0000001D">
+						<Properties>
+							<string name="Name">InputController</string>
+							<ProtectedString name="Source"><![CDATA[-- Input: punch (tap) / charged punch (hold) / dash. Animations, sounds and dash movement are
+-- predicted locally for instant feel; the server independently validates and resolves hits.
+local CollectionService = game:GetService("CollectionService")
+local ContextActionService = game:GetService("ContextActionService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local Movement = require(Shared:WaitForChild("Movement"))
+local Net = require(Shared:WaitForChild("Net"))
+
+local EffectsController = require(script.Parent.EffectsController)
+local State = require(script.Parent.State)
+
+local InputController = {}
+
+local C = Config.Combat
+local player = Players.LocalPlayer
+local chargeRemote = Net.Event("ChargeStart")
+local punchRemote = Net.Event("Punch")
+local dashRemote = Net.Event("Dash")
+
+local tracks: { [string]: AnimationTrack } = {}
+
+local function getCharacter(): (Model?, Humanoid?, BasePart?)
+	local character = player.Character
+	if not character then
+		return nil, nil, nil
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not humanoid or not root or humanoid.Health <= 0 then
+		return nil, nil, nil
+	end
+	return character, humanoid, root
+end
+
+local function loadTracks(character: Model)
+	table.clear(tracks)
+	local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
+	if not humanoid then
+		return
+	end
+	local animator = humanoid:WaitForChild("Animator", 10) :: Animator?
+	if not animator then
+		return
+	end
+	for _, key in { "Punch", "Charged" } do
+		local animation = Instance.new("Animation")
+		animation.AnimationId = Config.Anims[key]
+		local ok, track = pcall(function()
+			return animator:LoadAnimation(animation)
+		end)
+		if ok and track then
+			track.Priority = Enum.AnimationPriority.Action
+			tracks[key] = track
+		end
+	end
+end
+
+local function playTrack(key: string)
+	local track = tracks[key]
+	if track then
+		track:Play(0.05)
+		track:AdjustSpeed(1.6)
+	end
+end
+
+local function flatten(vector: Vector3, fallback: Vector3): Vector3
+	local flat = Vector3.new(vector.X, 0, vector.Z)
+	if flat.Magnitude > 0.05 then
+		return flat.Unit
+	end
+	local flatFallback = Vector3.new(fallback.X, 0, fallback.Z)
+	if flatFallback.Magnitude > 0.05 then
+		return flatFallback.Unit
+	end
+	return Vector3.new(0, 0, -1)
+end
+
+-- Camera-forward aim with gentle aim assist toward the most "in front" nearby fighter.
+local function aimDirection(root: BasePart): Vector3
+	local camera = Workspace.CurrentCamera
+	local look = flatten(if camera then camera.CFrame.LookVector else root.CFrame.LookVector, root.CFrame.LookVector)
+	local best, bestScore = nil, -math.huge
+	for _, model in CollectionService:GetTagged("Fighter") do
+		if model ~= player.Character and model:IsA("Model") then
+			local otherRoot = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if otherRoot then
+				local offset = otherRoot.Position - root.Position
+				local flat = Vector3.new(offset.X, 0, offset.Z)
+				local distance = flat.Magnitude
+				if distance > 0.1 and distance < 11 and math.abs(offset.Y) < 7 then
+					local dot = flat.Unit:Dot(look)
+					if dot > 0.45 then
+						local score = dot * 2 - distance / 11
+						if score > bestScore then
+							best, bestScore = flat.Unit, score
+						end
+					end
+				end
+			end
+		end
+	end
+	return best or look
+end
+
+local function isFrozen(humanoid: Humanoid): boolean
+	return humanoid.WalkSpeed <= 0.01 and humanoid.JumpPower <= 0.01
+end
+
+function InputController.BeginCharge()
+	local _, humanoid, _ = getCharacter()
+	if not humanoid or State.Charging or isFrozen(humanoid) or Movement.IsTumbling(humanoid) then
+		return
+	end
+	local cooldown = player:GetAttribute("PunchCooldown") or C.PunchCooldown
+	if os.clock() - State.LastPunch < cooldown then
+		return
+	end
+	State.Charging = true
+	State.ChargeStart = os.clock()
+	chargeRemote:FireServer()
+end
+
+function InputController.ReleasePunch()
+	if not State.Charging then
+		return
+	end
+	State.Charging = false
+	local _, humanoid, root = getCharacter()
+	if not humanoid or not root then
+		return
+	end
+	local chargeSpeed = player:GetAttribute("ChargeSpeed") or 1
+	local alpha = math.clamp((os.clock() - State.ChargeStart) * chargeSpeed / C.ChargeMaxTime, 0, 1)
+	local charged = alpha >= C.ChargeThreshold
+	local aim = aimDirection(root)
+	if not Movement.IsTumbling(humanoid) then
+		root.CFrame = CFrame.lookAt(root.Position, root.Position + aim)
+	end
+	State.LastPunch = os.clock()
+	playTrack(if charged then "Charged" else "Punch")
+	EffectsController.PlaySound(if charged then Config.Sounds.ChargedSwing else Config.Sounds.Swing, nil, 0.45)
+	punchRemote:FireServer(aim)
+end
+
+function InputController.Dash()
+	local _, humanoid, root = getCharacter()
+	if not humanoid or not root or isFrozen(humanoid) then
+		return
+	end
+	local now = os.clock()
+	if now - State.LastKnockback < C.HitstunDashLock then
+		return
+	end
+
+	local charges = player:GetAttribute("DashCharges") or 1
+	while #State.DashReady < charges do
+		table.insert(State.DashReady, 0)
+	end
+	while #State.DashReady > charges do
+		table.remove(State.DashReady)
+	end
+	local slot = nil
+	for index, readyAt in State.DashReady do
+		if readyAt <= now then
+			slot = index
+			break
+		end
+	end
+	if not slot then
+		return
+	end
+	State.DashReady[slot] = now + (player:GetAttribute("DashCooldown") or C.DashCooldown)
+
+	local direction = if humanoid.MoveDirection.Magnitude > 0.1
+		then flatten(humanoid.MoveDirection, root.CFrame.LookVector)
+		else aimDirection(root)
+	State.Charging = false
+	Movement.Dash(humanoid, root, direction, C)
+	dashRemote:FireServer(direction)
+	EffectsController.PlaySound(Config.Sounds.Dash, nil, 0.5, 1.3)
+	EffectsController.FovKick(5)
+end
+
+function InputController.Start()
+	player.CharacterAdded:Connect(function(character)
+		State.Charging = false
+		table.clear(State.DashReady)
+		loadTracks(character)
+	end)
+	if player.Character then
+		task.spawn(loadTracks, player.Character)
+	end
+
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			InputController.BeginCharge()
+		elseif input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.LeftShift then
+			InputController.Dash()
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			InputController.ReleasePunch()
+		end
+	end)
+
+	-- Touch buttons + gamepad.
+	ContextActionService:BindAction("LP_Punch", function(_, inputState)
+		if inputState == Enum.UserInputState.Begin then
+			InputController.BeginCharge()
+		elseif inputState == Enum.UserInputState.End or inputState == Enum.UserInputState.Cancel then
+			InputController.ReleasePunch()
+		end
+		return Enum.ContextActionResult.Sink
+	end, true, Enum.KeyCode.ButtonR2)
+	ContextActionService:SetTitle("LP_Punch", "PUNCH")
+	ContextActionService:SetPosition("LP_Punch", UDim2.new(1, -200, 1, -110))
+
+	ContextActionService:BindAction("LP_Dash", function(_, inputState)
+		if inputState == Enum.UserInputState.Begin then
+			InputController.Dash()
+		end
+		return Enum.ContextActionResult.Sink
+	end, true, Enum.KeyCode.ButtonX, Enum.KeyCode.ButtonL2)
+	ContextActionService:SetTitle("LP_Dash", "DASH")
+	ContextActionService:SetPosition("LP_Dash", UDim2.new(1, -150, 1, -190))
+end
+
+return InputController
+]]></ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX0000001E">
+						<Properties>
+							<string name="Name">State</string>
+							<ProtectedString name="Source"><![CDATA[-- Tiny shared client state so controllers can talk without depending on each other.
+local comboChanged = Instance.new("BindableEvent")
+local bigMessage = Instance.new("BindableEvent")
+
+local State = {
+	Charging = false,
+	ChargeStart = 0,
+	LastPunch = -math.huge,
+	LastKnockback = -math.huge,
+	DashReady = { 0 },
+	Combo = 0,
+	LastComboHit = 0,
+	ComboChanged = comboChanged,
+	-- Fire(text, style, subtitle) to show a local-only announcement.
+	BigMessage = bigMessage,
+}
+
+function State.MyId(): string
+	return "P" .. game:GetService("Players").LocalPlayer.UserId
+end
+
+return State
+]]></ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX0000001F">
+						<Properties>
+							<string name="Name">UI</string>
+							<ProtectedString name="Source"><![CDATA[-- Small helpers for building GUIs in code.
+local TweenService = game:GetService("TweenService")
+
+local UI = {}
+
+UI.Font = Enum.Font.FredokaOne
+UI.BodyFont = Enum.Font.GothamBold
+UI.Panel = Color3.fromRGB(22, 24, 38)
+
+function UI.new(className: string, props: { [string]: any }?, children: { Instance }?): any
+	local instance = Instance.new(className)
+	local parent = nil
+	if props then
+		for key, value in props do
+			if key == "Parent" then
+				parent = value
+			else
+				(instance :: any)[key] = value
+			end
+		end
+	end
+	if children then
+		for _, child in children do
+			child.Parent = instance
+		end
+	end
+	if parent then
+		instance.Parent = parent
+	end
+	return instance
+end
+
+function UI.corner(radius: number?): UICorner
+	return UI.new("UICorner", { CornerRadius = UDim.new(0, radius or 10) })
+end
+
+function UI.stroke(color: Color3?, thickness: number?, transparency: number?): UIStroke
+	return UI.new("UIStroke", {
+		Color = color or Color3.new(0, 0, 0),
+		Thickness = thickness or 2,
+		Transparency = transparency or 0,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	})
+end
+
+function UI.textStroke(thickness: number?): UIStroke
+	return UI.new("UIStroke", {
+		Color = Color3.new(0, 0, 0),
+		Thickness = thickness or 2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+	})
+end
+
+function UI.label(props: { [string]: any }): TextLabel
+	local defaults = {
+		BackgroundTransparency = 1,
+		Font = UI.Font,
+		TextColor3 = Color3.new(1, 1, 1),
+		TextScaled = true,
+	}
+	for key, value in props do
+		defaults[key] = value
+	end
+	return UI.new("TextLabel", defaults)
+end
+
+-- Quick "pop" scale animation using a UIScale child.
+function UI.pop(guiObject: GuiObject, from: number?, duration: number?)
+	local scale = guiObject:FindFirstChildOfClass("UIScale")
+	if not scale then
+		scale = UI.new("UIScale", { Parent = guiObject })
+	end
+	scale.Scale = from or 1.35
+	TweenService:Create(scale, TweenInfo.new(duration or 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1,
+	}):Play()
+end
+
+function UI.tween(instance: Instance, duration: number, goals: { [string]: any }, style: Enum.EasingStyle?, direction: Enum.EasingDirection?): Tween
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, style or Enum.EasingStyle.Quad, direction or Enum.EasingDirection.Out),
+		goals
+	)
+	tween:Play()
+	return tween
+end
+
+function UI.formatTime(seconds: number): string
+	seconds = math.max(0, math.ceil(seconds))
+	return string.format("%d:%02d", seconds // 60, seconds % 60)
+end
+
+return UI
+]]></ProtectedString>
+						</Properties>
+					</Item>
+				</Item>
+			</Item>
+		</Item>
+	</Item>
+</roblox>
