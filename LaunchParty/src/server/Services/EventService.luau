@@ -182,7 +182,7 @@ local function startSweeper(): () -> ()
 				end
 			elseif fighter.IsBot and perpendicular < 6 and height < 4.6 then
 				-- Bots try to hop the beam, better bots more reliably.
-				if rng:NextNumber() < 0.05 + BotService.GetSkill(fighter) * 0.12 then
+				if ArenaService.HasFloor(position) and rng:NextNumber() < 0.05 + BotService.GetSkill(fighter) * 0.12 then
 					(fighter.Humanoid :: Humanoid).Jump = true
 				end
 			end

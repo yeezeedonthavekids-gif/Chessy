@@ -245,11 +245,15 @@ local function chooseTarget(fighter: Fighter, candidates: { Fighter }): Fighter?
 	local best, bestScore = nil, math.huge
 	for _, other in candidates do
 		if other ~= fighter then
-			local distance = flat((other.Root :: BasePart).Position - root.Position).Magnitude
-			-- Prefer close, high-heat targets, and gang up on the crowned leader.
-			local score = distance - other.Heat * 0.1 - (if other.Crowned then 12 else 0)
-			if score < bestScore then
-				best, bestScore = other, score
+			local otherPosition = (other.Root :: BasePart).Position
+			-- Don't chase people who are already flying off the map or stuck somewhere we can't walk to.
+			if ArenaService.HasFloor(otherPosition) and ArenaService.FindPath(root.Position, otherPosition) then
+				local distance = flat(otherPosition - root.Position).Magnitude
+				-- Prefer close, high-heat targets, and gang up on the crowned leader.
+				local score = distance - other.Heat * 0.1 - (if other.Crowned then 12 else 0)
+				if score < bestScore then
+					best, bestScore = other, score
+				end
 			end
 		end
 	end
@@ -298,10 +302,90 @@ local function dashReady(fighter: Fighter, now: number): boolean
 	return false
 end
 
--- Dash only if there's floor where we'd land (bots shouldn't dash themselves off the map).
+-- Navigation -------------------------------------------------------------------------------
+
+-- How far ahead a step must have floor. Bots get more careful as their heat climbs.
+local function lookahead(fighter: Fighter): number
+	return 3.5 + math.clamp(fighter.Heat / 100, 0, 1.5) * 1.5
+end
+
+local function isSafeDirection(position: Vector3, direction: Vector3, reach: number): boolean
+	return ArenaService.HasFloor(position + direction * 2)
+		and ArenaService.HasFloor(position + direction * reach)
+		and ArenaService.HasFloor(position + direction * (reach + 2.5))
+end
+
+-- The safe direction closest to `desired`, or nil when every direction is unsafe (then stand still).
+local function steer(fighter: Fighter, position: Vector3, desired: Vector3): Vector3?
+	local reach = lookahead(fighter)
+	if isSafeDirection(position, desired, reach) then
+		return desired
+	end
+	local best, bestScore = nil, -math.huge
+	for i = 0, 15 do
+		local angle = i / 16 * math.pi * 2
+		local direction = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		if isSafeDirection(position, direction, reach) then
+			-- As close as possible to where we wanted to go, leaning toward open ground.
+			local score = direction:Dot(desired) + ArenaService.Openness(position + direction * reach) * 0.05
+			if score > bestScore then
+				best, bestScore = direction, score
+			end
+		end
+	end
+	return best
+end
+
+local function lineHasFloor(from: Vector3, to: Vector3): boolean
+	local offset = flat(to - from)
+	local length = offset.Magnitude
+	if length < 0.1 then
+		return true
+	end
+	local direction = offset.Unit
+	for distance = 1.5, length, 1.5 do
+		if not ArenaService.HasFloor(from + direction * distance) then
+			return false
+		end
+	end
+	return true
+end
+
+-- Walk toward `goal`, following the tile path around holes and gaps, never off an edge.
+local function walkToward(fighter: Fighter, position: Vector3, goal: Vector3, speed: number)
+	local humanoid = fighter.Humanoid :: Humanoid
+	local waypoint = goal
+	if not lineHasFloor(position, goal) then
+		local path = ArenaService.FindPath(position, goal)
+		if path then
+			waypoint = path[1]
+			-- Skip ahead while the straight line stays over floor, so the walk looks natural.
+			for i = 2, math.min(#path, 4) do
+				if lineHasFloor(position, path[i]) then
+					waypoint = path[i]
+				else
+					break
+				end
+			end
+		end
+	end
+	local desired = flat(waypoint - position)
+	if desired.Magnitude < 0.75 then
+		humanoid:Move(Vector3.zero, false)
+		return
+	end
+	local direction = steer(fighter, position, desired.Unit)
+	humanoid:Move(if direction then direction * speed else Vector3.zero, false)
+end
+
+-- Dash only when the whole dash lands well inside the arena.
 local function safeDash(fighter: Fighter, direction: Vector3): boolean
-	local root = fighter.Root :: BasePart
-	if not ArenaService.IsOverArena(root.Position + direction * 14) then
+	local position = (fighter.Root :: BasePart).Position
+	local landing = position + direction * 14
+	if not (lineHasFloor(position, landing) and ArenaService.HasFloor(position + direction * 17)) then
+		return false
+	end
+	if ArenaService.Openness(landing) < 5 then
 		return false
 	end
 	return CombatService.TryDash(fighter, direction)
@@ -314,44 +398,64 @@ local function think(fighter: Fighter, now: number)
 	local skill = brain.Skill
 	local center = ArenaService.GetCenter()
 	local position = root.Position
-	local toCenter = safeUnit(flat(center - position), Vector3.new(0, 0, 1))
-	local overArena = ArenaService.IsOverArena(position)
 	local canDash = dashReady(fighter, now)
 
-	-- Recovery: launched off the edge? Air-dash back toward the middle.
-	if not overArena and position.Y < center.Y + 1 then
-		if canDash and rng:NextNumber() < 0.45 + skill * 0.5 then
-			CombatService.TryDash(fighter, toCenter)
+	-- 1. Not over solid floor (launched, slid off an edge, or standing on a crumbling tile):
+	--    head for the nearest solid tile, air-dashing if we're already falling.
+	if not ArenaService.HasFloor(position) then
+		local nearest = ArenaService.NearestSolidTile(position)
+		if nearest then
+			local toSafety = flat(nearest - position)
+			if toSafety.Magnitude > 0.1 then
+				toSafety = toSafety.Unit
+				local falling = position.Y < center.Y + 1.5
+				if falling and canDash and rng:NextNumber() < 0.55 + skill * 0.45 then
+					CombatService.TryDash(fighter, toSafety)
+				end
+				humanoid:Move(toSafety, false)
+			end
 		end
-		humanoid:Move(toCenter, false)
 		return
 	end
+
+	-- 2. No control while tumbling. Clear the old walk direction so we don't keep walking afterwards.
 	if now < fighter.TumbleUntil or humanoid.PlatformStand then
+		humanoid:Move(Vector3.zero, false)
 		return
 	end
 
 	if now >= brain.NextRetarget or not brain.Target or not brain.Target.Alive then
 		brain.Target = chooseTarget(fighter, FighterService.AliveInArena())
-		brain.NextRetarget = now + rng:NextNumber(0.8, 1.6)
+		brain.NextRetarget = now + rng:NextNumber(0.6, 1.2)
 	end
 	local target: Fighter? = brain.Target
 	if not target or not FighterService.IsAlive(target) then
-		humanoid:Move(toCenter * 0.5, false)
+		-- Nobody worth chasing: wait somewhere safe.
+		local safeSpot = ArenaService.SafestTileNear(position)
+		if safeSpot then
+			walkToward(fighter, position, safeSpot, 0.6)
+		end
 		return
 	end
 
-	local offset = flat((target.Root :: BasePart).Position - position)
+	local targetPosition = (target.Root :: BasePart).Position
+	local offset = flat(targetPosition - position)
 	local distance = offset.Magnitude
 	local aim = safeUnit(offset, root.CFrame.LookVector)
 	-- Imperfect aim so bots feel human.
 	local wobble = (1 - skill) * 0.35
 	aim = safeUnit(aim + Vector3.new(rng:NextNumber(-wobble, wobble), 0, rng:NextNumber(-wobble, wobble)), aim)
 
-	-- Edge avoidance: never walk somewhere with no floor.
-	local moveDir = aim
-	local nearEdge = not ArenaService.IsOverArena(position + moveDir * 5)
-	if nearEdge then
-		moveDir = toCenter
+	-- Backed up against an edge? Circle around toward open ground so we're not the one getting launched.
+	local openness = ArenaService.Openness(position)
+	local cornered = openness <= 4
+	local goal = targetPosition
+	if cornered and distance < 14 then
+		local safeSpot = ArenaService.SafestTileNear(position)
+		if safeSpot then
+			local toSafe = safeUnit(flat(safeSpot - position), aim)
+			goal = position + safeUnit(aim + toSafe * 1.3, toSafe) * 6
+		end
 	end
 
 	if canDash and now >= (brain.NextDash or 0) then
@@ -360,9 +464,12 @@ local function think(fighter: Fighter, now: number)
 			-- Someone's winding up a big punch nearby: sidestep it.
 			local side = Vector3.new(-aim.Z, 0, aim.X) * (if rng:NextNumber() < 0.5 then 1 else -1)
 			dashed = safeDash(fighter, side) or safeDash(fighter, -side)
-		elseif nearEdge and distance < 8 and rng:NextNumber() < 0.2 + skill * 0.3 then
-			-- Cornered at the edge: dash back toward the middle.
-			dashed = safeDash(fighter, toCenter)
+		elseif cornered and distance < 8 and rng:NextNumber() < 0.25 + skill * 0.35 then
+			-- Cornered at the edge: dash back to open ground.
+			local safeSpot = ArenaService.SafestTileNear(position)
+			if safeSpot then
+				dashed = safeDash(fighter, safeUnit(flat(safeSpot - position), aim))
+			end
 		elseif distance > 7 and distance < 20 and rng:NextNumber() < 0.12 + skill * 0.18 then
 			-- Close the gap and bump them.
 			dashed = safeDash(fighter, aim)
@@ -374,7 +481,7 @@ local function think(fighter: Fighter, now: number)
 	end
 
 	if brain.ChargeRelease then
-		humanoid:Move(moveDir * 0.6, false)
+		walkToward(fighter, position, goal, 0.6)
 		if now >= brain.ChargeRelease or (distance <= Config.Combat.PunchRange and now >= brain.ChargeRelease - 0.3) then
 			root.CFrame = CFrame.lookAt(position, position + aim)
 			CombatService.ReleasePunch(fighter, aim)
@@ -385,7 +492,11 @@ local function think(fighter: Fighter, now: number)
 	end
 
 	if distance <= Config.Combat.PunchRange * 0.9 then
-		humanoid:Move(moveDir * 0.3, false)
+		if cornered then
+			walkToward(fighter, position, goal, 0.6)
+		else
+			walkToward(fighter, position, targetPosition, 0.3)
+		end
 		local cooldown = Config.Combat.PunchCooldown * fighter.Stats.PunchCooldownMult
 		if now >= brain.NextAttack and now - fighter.LastPunch >= cooldown then
 			root.CFrame = CFrame.lookAt(position, position + aim)
@@ -399,10 +510,11 @@ local function think(fighter: Fighter, now: number)
 			brain.NextAttack = now + rng:NextNumber(0.12, 0.5) * (1.4 - skill)
 		end
 	else
-		humanoid:Move(moveDir, false)
+		walkToward(fighter, position, goal, 1)
 	end
 
-	if rng:NextNumber() < 0.012 then
+	-- Hop around now and then, but only with plenty of floor around.
+	if openness >= 7 and rng:NextNumber() < 0.012 then
 		humanoid.Jump = true
 	end
 end

@@ -123,10 +123,13 @@ type Tile = {
 	Position: Vector3, -- centre of the tile's top surface
 	Dist: number, -- flat distance from arena centre
 	Alive: boolean,
+	GX: number, -- grid coordinates
+	GZ: number,
 }
 
 local arenaFolder: Folder? = nil
 local tiles: { Tile } = {}
+local grid: { [number]: Tile } = {}
 local rng = Random.new()
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Include
@@ -527,6 +530,7 @@ function ArenaService.Clear()
 		arenaFolder = nil
 	end
 	table.clear(tiles)
+	table.clear(grid)
 end
 
 function ArenaService.Build(shapeName: string, theme: Theme?)
@@ -583,13 +587,17 @@ function ArenaService.Build(shapeName: string, theme: Theme?)
 				model.PrimaryPart = top
 				model.Parent = folder
 
-				table.insert(tiles, {
+				local tile: Tile = {
 					Model = model,
 					Top = top,
 					Position = center + Vector3.new(x, 0, z),
 					Dist = dist,
 					Alive = true,
-				})
+					GX = gx,
+					GZ = gz,
+				}
+				table.insert(tiles, tile)
+				grid[(gx + 100) * 1000 + (gz + 100)] = tile
 			end
 		end
 	end
@@ -764,6 +772,133 @@ function ArenaService.SetIce(enabled: boolean)
 			end
 		end
 	end
+end
+
+-- Tile grid queries (used by bot navigation) -------------------------------------------------------
+
+local function gridKey(gx: number, gz: number): number
+	return (gx + 100) * 1000 + (gz + 100)
+end
+
+local function gridCoords(position: Vector3): (number, number)
+	local center = ARENA.Center
+	return math.round((position.X - center.X) / ARENA.TileSize), math.round((position.Z - center.Z) / ARENA.TileSize)
+end
+
+local function solidAt(gx: number, gz: number): Tile?
+	local tile = grid[gridKey(gx, gz)]
+	if tile and tile.Alive then
+		return tile
+	end
+	return nil
+end
+
+-- Is there solid (not crumbling) floor under this point? Instant, no raycast.
+function ArenaService.HasFloor(position: Vector3): boolean
+	return solidAt(gridCoords(position)) ~= nil
+end
+
+-- How many of the 8 tiles around this point are solid (8 = nowhere near an edge).
+function ArenaService.Openness(position: Vector3): number
+	local gx, gz = gridCoords(position)
+	local count = 0
+	for dx = -1, 1 do
+		for dz = -1, 1 do
+			if (dx ~= 0 or dz ~= 0) and solidAt(gx + dx, gz + dz) then
+				count += 1
+			end
+		end
+	end
+	return count
+end
+
+function ArenaService.NearestSolidTile(position: Vector3): Vector3?
+	local best: Tile? = nil
+	local bestDist = math.huge
+	for _, tile in tiles do
+		if tile.Alive then
+			local offset = tile.Position - position
+			local d = offset.X * offset.X + offset.Z * offset.Z
+			if d < bestDist then
+				best, bestDist = tile, d
+			end
+		end
+	end
+	return if best then best.Position else nil
+end
+
+-- A nearby tile that's well away from any edge. Good spot to wait.
+function ArenaService.SafestTileNear(position: Vector3): Vector3?
+	local best: Tile? = nil
+	local bestScore = -math.huge
+	for _, tile in tiles do
+		if tile.Alive then
+			local open = ArenaService.Openness(tile.Position)
+			local offset = tile.Position - position
+			local score = open * 10 - math.sqrt(offset.X * offset.X + offset.Z * offset.Z) * 0.3
+			if score > bestScore then
+				best, bestScore = tile, score
+			end
+		end
+	end
+	return if best then best.Position else nil
+end
+
+local NEIGHBORS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } }
+
+-- Shortest walkable route over solid tiles (breadth-first search on the tile grid).
+-- Returns tile positions after the start, or nil if there's no way to get there on foot.
+function ArenaService.FindPath(from: Vector3, to: Vector3): { Vector3 }?
+	local sx, sz = gridCoords(from)
+	if not solidAt(sx, sz) then
+		local nearest = ArenaService.NearestSolidTile(from)
+		if not nearest then
+			return nil
+		end
+		sx, sz = gridCoords(nearest)
+	end
+	local tx, tz = gridCoords(to)
+	if not solidAt(tx, tz) then
+		local nearest = ArenaService.NearestSolidTile(to)
+		if not nearest then
+			return nil
+		end
+		tx, tz = gridCoords(nearest)
+	end
+	local startKey, goalKey = gridKey(sx, sz), gridKey(tx, tz)
+	if startKey == goalKey then
+		return { (solidAt(tx, tz) :: Tile).Position }
+	end
+
+	local cameFrom: { [number]: number } = { [startKey] = startKey }
+	local queue = { { sx, sz } }
+	local head = 1
+	while head <= #queue do
+		local node = queue[head]
+		head += 1
+		local x, z = node[1], node[2]
+		for _, step in NEIGHBORS do
+			local nx, nz = x + step[1], z + step[2]
+			local key = gridKey(nx, nz)
+			-- Diagonal steps only when both side tiles exist, so we never cut a corner over the void.
+			if not cameFrom[key] and solidAt(nx, nz)
+				and (step[1] == 0 or step[2] == 0 or (solidAt(x + step[1], z) and solidAt(x, z + step[2])))
+			then
+				cameFrom[key] = gridKey(x, z)
+				if key == goalKey then
+					local path = {}
+					local current = key
+					while current ~= startKey do
+						table.insert(path, 1, (grid[current] :: Tile).Position)
+						current = cameFrom[current]
+					end
+					return path
+				end
+				table.insert(queue, { nx, nz })
+			end
+		end
+	end
+	return nil
 end
 
 function ArenaService.GetCenter(): Vector3
