@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#1f7fa8"/>
+      <stop offset="0.6" stop-color="#0f3f66"/>
+      <stop offset="1" stop-color="#0a1f3a"/>
+    </radialGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e6ecf2"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe27a"/>
+      <stop offset="1" stop-color="#f0a21e"/>
+    </linearGradient>
+    <linearGradient id="fin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5f7f9c"/>
+      <stop offset="1" stop-color="#2e4a66"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <!-- reroll ring -->
+  <g fill="none" stroke="url(#gold)" stroke-width="16" stroke-linecap="round" opacity="0.95">
+    <path d="M 118 300 A 150 150 0 0 1 300 112"/>
+    <path d="M 394 212 A 150 150 0 0 1 212 400"/>
+  </g>
+  <polygon points="300,84 336,118 292,136" fill="#ffd34d"/>
+  <polygon points="212,428 176,394 220,376" fill="#f6b52c"/>
+
+  <!-- fanned cards -->
+  <g filter="url(#shadow)">
+    <g transform="rotate(-20 256 380)">
+      <rect x="186" y="150" width="140" height="196" rx="16" fill="url(#card)" stroke="#c9d3de" stroke-width="4"/>
+      <text x="204" y="190" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="34" fill="#1d2b3a">A</text>
+      <text x="256" y="276" text-anchor="middle" font-family="Arial, sans-serif" font-size="70" fill="#1d2b3a">♠</text>
+    </g>
+    <g transform="rotate(20 256 380)">
+      <rect x="186" y="150" width="140" height="196" rx="16" fill="url(#card)" stroke="#c9d3de" stroke-width="4"/>
+      <text x="204" y="190" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="34" fill="#d23a4a">A</text>
+      <text x="256" y="276" text-anchor="middle" font-family="Arial, sans-serif" font-size="70" fill="#d23a4a">♥</text>
+    </g>
+    <!-- center card: gold edge, shark fin as the suit -->
+    <g>
+      <rect x="181" y="128" width="150" height="210" rx="18" fill="url(#card)" stroke="url(#gold)" stroke-width="9"/>
+      <text x="200" y="172" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="36" fill="#0f3f66">A</text>
+      <g transform="translate(256 236)">
+        <path d="M -52 38 C -30 10 -6 -40 22 -62 C 18 -30 26 6 52 38 Z" fill="url(#fin)" stroke="#1d2f44" stroke-width="5" stroke-linejoin="round"/>
+        <path d="M -70 40 Q -52 30 -35 40 T 0 40 T 35 40 T 70 40" fill="none" stroke="#1f7fa8" stroke-width="8" stroke-linecap="round"/>
+      </g>
+      <text x="312" y="322" text-anchor="end" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="36" fill="#0f3f66" transform="rotate(180 296 310)">A</text>
+    </g>
+  </g>
+</svg>
