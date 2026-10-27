@@ -1,11 +1,16 @@
--- Procedural animations. Instead of uploaded animation assets, we bend each R15 joint (Motor6D.C0)
+-- Animations. Punches (jab, wind-up, haymaker) use real animations from
+-- ReplicatedStorage.LaunchPartyAnimations (see Config.Anims). If those aren't available, and for
+-- dash / flinch / victory, this falls back to procedural animation. Instead of uploaded animation assets, we bend each R15 joint (Motor6D.C0)
 -- in code: alternating jabs, a wind-up while charging, a haymaker, dash lean, hit flinch and a victory pose.
 -- They layer on top of Roblox's walk/idle animations, and every client runs them for every fighter.
 local CollectionService = game:GetService("CollectionService")
+local KeyframeSequenceProvider = game:GetService("KeyframeSequenceProvider")
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local State = require(script.Parent.State)
 
 local AnimationController = {}
@@ -146,11 +151,124 @@ local function modelForFighter(fighterId: string): Model?
 	return nil
 end
 
+-- Real animations (KeyframeSequences) ------------------------------------------------------------
+
+local TRACK_NAMES = { "JabRight", "JabLeft", "Haymaker", "WindUp" }
+local animationIds: { [string]: string } = {}
+local useTracks = false
+local trackCache: { [Model]: { [string]: AnimationTrack } } = setmetatable({}, { __mode = "k" }) :: any
+local nextLeftTrack: { [Model]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+
+local function resolveAnimations()
+	local folder = ReplicatedStorage:FindFirstChild("LaunchPartyAnimations")
+	for _, name in TRACK_NAMES do
+		local id = Config.Anims[name]
+		if (not id or id == "") and RunService:IsStudio() and folder then
+			-- In Studio we can play the animation files directly, no upload needed.
+			local sequence = folder:FindFirstChild(name)
+			if sequence and sequence:IsA("KeyframeSequence") then
+				local ok, temporary = pcall(function()
+					return KeyframeSequenceProvider:RegisterKeyframeSequence(sequence)
+				end)
+				if ok then
+					id = temporary
+				else
+					warn("[LaunchParty] Couldn't load animation", name, temporary)
+				end
+			end
+		end
+		if id and id ~= "" then
+			animationIds[name] = id
+		end
+	end
+	useTracks = animationIds.JabRight ~= nil
+		and animationIds.JabLeft ~= nil
+		and animationIds.Haymaker ~= nil
+		and animationIds.WindUp ~= nil
+end
+
+-- Other players' characters: their own client plays the animation and Roblox replicates it.
+local function replicatedByOwner(model: Model): boolean
+	return model ~= player.Character and Players:GetPlayerFromCharacter(model) ~= nil
+end
+
+local function getTrack(model: Model, name: string): AnimationTrack?
+	local cache = trackCache[model]
+	if not cache then
+		cache = {}
+		trackCache[model] = cache
+	end
+	if cache[name] then
+		return cache[name]
+	end
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		return nil
+	end
+	local animation = Instance.new("Animation")
+	animation.AnimationId = animationIds[name]
+	local ok, track = pcall(function()
+		return animator:LoadAnimation(animation)
+	end)
+	if not ok or not track then
+		return nil
+	end
+	track.Priority = Enum.AnimationPriority.Action
+	track.Looped = name == "WindUp"
+	cache[name] = track
+	return track
+end
+
+-- Returns true if a real animation handled this attack.
+local function playTrack(model: Model, kind: string): boolean
+	if not useTracks or (kind ~= "Jab" and kind ~= "Haymaker") then
+		return false
+	end
+	if replicatedByOwner(model) then
+		return true
+	end
+	local name = kind
+	if kind == "Jab" then
+		name = if nextLeftTrack[model] then "JabLeft" else "JabRight"
+		nextLeftTrack[model] = not nextLeftTrack[model]
+	end
+	local cache = trackCache[model]
+	local windUp = cache and cache.WindUp
+	if windUp and windUp.IsPlaying then
+		windUp:Stop(0.05)
+	end
+	local track = getTrack(model, name)
+	if track then
+		track:Play(0.05, 1, 1)
+	end
+	return true
+end
+
+local function updateWindUpTrack(model: Model, charging: boolean)
+	if replicatedByOwner(model) then
+		return
+	end
+	local cache = trackCache[model]
+	local track = if charging then getTrack(model, "WindUp") else cache and cache.WindUp
+	if not track then
+		return
+	end
+	if charging and not track.IsPlaying then
+		track:Play(0.15)
+	elseif not charging and track.IsPlaying then
+		track:Stop(0.1)
+	end
+end
+
 -- Public API --------------------------------------------------------------------------------
 
 -- kind: "Jab" | "Haymaker" | "Dash" | "Flinch" | "Victory"
 function AnimationController.Play(model: Model?, kind: string)
 	if not model then
+		return
+	end
+	if playTrack(model, kind) then
 		return
 	end
 	local rig = getRig(model)
@@ -211,6 +329,10 @@ local function updateRig(model: Model, rig: Rig, now: number, dt: number)
 
 	-- Charging wind-up blends in/out smoothly and trembles the longer you hold it.
 	local charging = if model == player.Character then State.Charging else model:GetAttribute("Charging") == true
+	if useTracks then
+		updateWindUpTrack(model, charging)
+		charging = false -- the real wind-up animation replaces the procedural one
+	end
 	rig.Charge = math.clamp(rig.Charge + (if charging then dt * 6 else -dt * 9), 0, 1)
 	if rig.Charge > 0 then
 		addPose(totals, POSES.WindUp, rig.Charge)
@@ -256,6 +378,7 @@ local function updateRig(model: Model, rig: Rig, now: number, dt: number)
 end
 
 function AnimationController.Start()
+	resolveAnimations()
 	RunService.RenderStepped:Connect(function(dt)
 		local now = os.clock()
 		local camera = Workspace.CurrentCamera

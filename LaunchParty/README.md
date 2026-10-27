@@ -90,11 +90,24 @@ their item (or gets it twice).
 
 ## Animations
 
-Punch, wind-up, haymaker, dash, flinch and victory poses are made by rotating the R15 joints
-(`Motor6D.C0`) in code (`AnimationController`). They layer on top of Roblox's normal walk and
-idle animations, and every client animates every fighter, so everyone sees the same thing.
-This needs R15 avatars (the default). If you make your own animations in the Animation Editor
-later, you can swap them in.
+The punches are real animations (KeyframeSequences, the same thing the Animation Editor makes),
+stored in **ReplicatedStorage → LaunchPartyAnimations**:
+
+| Animation | What it is |
+|---|---|
+| JabRight / JabLeft | Quick jab with a step and hip turn; jabs alternate hands |
+| WindUp | Loops while you hold to charge: crouch, fist cocked back |
+| Haymaker | Big lunging punch when you release a charge |
+
+- **In Studio** they play automatically, no upload needed.
+- **For the live game**, Roblox needs them uploaded: right-click each one → **Save to Roblox**,
+  copy the ID, and paste it into `Config.Anims` (e.g. `JabRight = "rbxassetid://123..."`).
+  Until then, the published game uses code-driven fallback animations.
+- To tweak them, edit the poses in `tools/make_animations.py` and run it, or edit them in the
+  Animation Editor.
+
+Dash, hit flinch and victory poses are procedural (`AnimationController` rotates the R15 joints).
+Everything needs R15 avatars (the default).
 
 ## Sounds and sky
 

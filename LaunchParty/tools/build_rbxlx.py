@@ -43,6 +43,17 @@ class Builder:
             self.lines.append(f'{pad}\t\t<ProtectedString name="Source"><![CDATA[{safe}]]></ProtectedString>')
         self.lines.append(f"{pad}\t</Properties>")
 
+    def embed_model(self, path, depth):
+        """Inlines the instances from an .rbxmx model file (e.g. animation KeyframeSequences)."""
+        text = read(path)
+        start, end = text.index("<Item"), text.rindex("</Item>") + len("</Item>")
+        body = text[start:end]
+        prefix = f"RBXM{self.next_ref:04X}_"
+        self.next_ref += 1
+        body = body.replace('referent="', f'referent="{prefix}')
+        pad = "\t" * depth
+        self.lines.extend(pad + line for line in body.splitlines())
+
     def close_item(self, depth):
         self.lines.append("\t" * depth + "</Item>")
 
@@ -94,6 +105,8 @@ def emit_path(builder, path, name, depth, properties=None):
             continue
         if os.path.isdir(full):
             emit_path(builder, full, entry, depth + 1)
+        elif entry.endswith(".rbxmx"):
+            builder.embed_model(full, depth + 1)
         else:
             kind = script_kind(entry)
             if kind:

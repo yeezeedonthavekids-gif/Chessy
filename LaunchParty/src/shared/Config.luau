@@ -88,9 +88,18 @@ Config.Events = {
 }
 
 Config.Anims = {
-	-- Roblox's default R15 idle/walk, used by bots. Punches are procedural (see AnimationController).
+	-- Roblox's default R15 idle/walk, used by bots.
 	Idle = "rbxassetid://507766388",
 	Walk = "rbxassetid://507777826",
+
+	-- Punch animations. The animation files live in ReplicatedStorage > LaunchPartyAnimations.
+	-- In Studio they play automatically. For the live game, right-click each one >
+	-- "Save to Roblox", then paste the ID here like "rbxassetid://1234567890".
+	-- Left empty in the live game = the code-driven fallback animations are used instead.
+	JabRight = "",
+	JabLeft = "",
+	Haymaker = "",
+	WindUp = "",
 }
 
 Config.Sounds = {
