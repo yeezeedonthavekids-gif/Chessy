@@ -92,9 +92,21 @@ To turn them on:
 3. Paste each ID into `Shop.luau` where it says `Id = 0`, and set `Robux =` to the price you
    chose (that's only used for the label in the shop).
 
-Anything left at `Id = 0` shows as "Coming soon". Purchases are handled safely: every receipt
+Anything left at `Id = 0` shows as "Coming soon". Once an ID is set, the shop pulls the real
+price and the icon you uploaded straight from Roblox, so they always match the website.
+
+The **Starter Bundle** is a limited-time offer: each player gets `Shop.StarterOfferHours` (48)
+hours from their first visit, shown as a countdown button on the HUD and in the shop. The
+server refuses the purchase after it expires. Purchases are handled safely: every receipt
 is recorded, saved, and only then confirmed to Roblox, so nobody gets charged without getting
 their item (or gets it twice).
+
+## Anticheat
+
+`AntiCheatService` (server only) watches for speed hacks/teleports, flying and ignoring
+knockback. Suspicious movement gets rubber-banded back and earns a strike; strikes wear off,
+and too many in a short time is a kick (never in Studio). Tune it in `Config.AntiCheat`.
+Combat, heat, points, Bonks and purchases are all decided by the server already.
 
 ## Animations
 

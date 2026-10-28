@@ -11,6 +11,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local Perks = require(Shared.Perks)
 local Progression = require(Shared.Progression)
+local Shop = require(Shared.Shop)
 
 local DataService = {}
 
@@ -57,6 +58,7 @@ local function defaultData(): { [string]: any }
 		TutorialDone = false,
 		QuestDay = 0,
 		Quests = {},
+		FirstJoin = 0,
 	}
 end
 
@@ -123,6 +125,7 @@ local function publish(player: Player)
 	player:SetAttribute("EquippedSkin", data.EquippedSkin)
 	player:SetAttribute("EquippedTrail", data.EquippedTrail)
 	player:SetAttribute("TutorialDone", data.TutorialDone)
+	player:SetAttribute("StarterOfferEndsAt", DataService.StarterOfferEndsAt(player))
 	player:SetAttribute(
 		"Inventory",
 		HttpService:JSONEncode({
@@ -175,6 +178,10 @@ function DataService.Load(player: Player)
 		return
 	end
 	profiles[player] = { Data = reconcile(data), Persistent = persistent, Dirty = false }
+	if profiles[player].Data.FirstJoin == 0 then
+		profiles[player].Data.FirstJoin = os.time()
+		profiles[player].Dirty = true
+	end
 	createLeaderstats(player)
 	publish(player)
 	loadedEvent:Fire(player)
@@ -211,6 +218,20 @@ function DataService.SaveNow(player: Player): boolean
 		return true
 	end
 	return write(player, profile)
+end
+
+-- Unix time the Starter Bundle offer ends, or 0 if it's gone (bought or expired).
+function DataService.StarterOfferEndsAt(player: Player): number
+	local profile = profiles[player]
+	if not profile then
+		return 0
+	end
+	local data = profile.Data
+	local endsAt = data.FirstJoin + Shop.StarterOfferHours * 3600
+	if data.Bundles.StarterBundle or os.time() >= endsAt then
+		return 0
+	end
+	return endsAt
 end
 
 function DataService.IsLoaded(player: Player): boolean

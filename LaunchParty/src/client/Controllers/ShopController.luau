@@ -8,6 +8,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared:WaitForChild("Net"))
 local Shop = require(Shared:WaitForChild("Shop"))
 
+local ProductInfo = require(script.Parent.ProductInfo)
 local UI = require(script.Parent.UI)
 
 local ShopController = {}
@@ -75,7 +76,7 @@ local function card(order: number, accent: Color3): Frame
 	})
 end
 
-local function swatch(parent: Frame, color: Color3?, sequence: ColorSequence?, icon: string?)
+local function swatch(parent: Frame, color: Color3?, sequence: ColorSequence?, icon: string?): Frame
 	local frame = UI.new("Frame", {
 		Size = UDim2.new(1, 0, 0, 62),
 		BackgroundColor3 = color or Color3.new(1, 1, 1),
@@ -90,9 +91,57 @@ local function swatch(parent: Frame, color: Color3?, sequence: ColorSequence?, i
 		})
 	end
 	if icon then
-		local label = UI.label({ Size = UDim2.fromScale(1, 1), Text = icon, Parent = frame })
+		local label = UI.label({ Name = "Emoji", Size = UDim2.fromScale(1, 1), Text = icon, Parent = frame })
 		UI.textStroke(2).Parent = label
 	end
+	return frame
+end
+
+-- Swap the placeholder swatch for the real icon uploaded on the Roblox website, once it loads.
+local function useRealIcon(frame: Frame, kind: string, id: number)
+	ProductInfo.Get(kind, id, function(info)
+		if not info.Icon or not frame.Parent then
+			return
+		end
+		local emoji = frame:FindFirstChild("Emoji")
+		if emoji then
+			emoji:Destroy()
+		end
+		frame.BackgroundColor3 = Color3.fromRGB(20, 22, 34)
+		local gradient = frame:FindFirstChildOfClass("UIGradient")
+		if gradient then
+			gradient:Destroy()
+		end
+		UI.new("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(0, 60, 0, 60),
+			BackgroundTransparency = 1,
+			Image = info.Icon,
+			ScaleType = Enum.ScaleType.Fit,
+			Parent = frame,
+		}, { UI.corner(10) })
+	end)
+end
+
+-- Show the real Robux price from Roblox on the buy button.
+local function useRealPrice(label: TextLabel, kind: string, id: number, suffix: string?)
+	ProductInfo.Get(kind, id, function(info)
+		if info.Price and label.Parent then
+			label.Text = "R$ " .. info.Price .. (suffix or "")
+		end
+	end)
+end
+
+-- Labels showing the Starter Bundle countdown; refreshed once a second.
+local timerLabels: { TextLabel } = {}
+
+local function starterSecondsLeft(): number
+	local endsAt = player:GetAttribute("StarterOfferEndsAt")
+	if type(endsAt) ~= "number" or endsAt <= 0 then
+		return 0
+	end
+	return math.max(0, endsAt - os.time())
 end
 
 local function textLines(parent: Frame, title: string, blurb: string?)
@@ -116,8 +165,8 @@ local function textLines(parent: Frame, title: string, blurb: string?)
 	})
 end
 
-local function actionButton(parent: Frame, text: string, top: Color3, bottom: Color3, onClick: (() -> ())?)
-	local button = UI.button(text, top, bottom, {
+local function actionButton(parent: Frame, text: string, top: Color3, bottom: Color3, onClick: (() -> ())?): TextLabel
+	local button, label = UI.button(text, top, bottom, {
 		AnchorPoint = Vector2.new(0, 1),
 		Position = UDim2.new(0, 0, 1, 0),
 		Size = UDim2.new(1, 0, 0, 32),
@@ -129,6 +178,7 @@ local function actionButton(parent: Frame, text: string, top: Color3, bottom: Co
 		button.Active = false
 		button.AutoButtonColor = false
 	end
+	return label
 end
 
 local GREEN = { Color3.fromRGB(110, 230, 120), Color3.fromRGB(40, 170, 90) }
@@ -182,14 +232,16 @@ end
 local function passCards()
 	for order, pass in Shop.Passes do
 		local frame = card(order, GOLD[1])
-		swatch(frame, Color3.fromRGB(255, 190, 60), nil, PASS_ICONS[pass.Key] or "🎟️")
+		local art = swatch(frame, Color3.fromRGB(255, 190, 60), nil, PASS_ICONS[pass.Key] or "🎟️")
+		useRealIcon(art, "Pass", pass.Id)
 		textLines(frame, pass.Name, pass.Blurb)
 		if player:GetAttribute("Pass_" .. pass.Key) then
 			actionButton(frame, "Owned ✓", GREY[1], GREY[2], nil)
 		else
-			actionButton(frame, robuxLabel(pass), ROBUX[1], ROBUX[2], function()
+			local label = actionButton(frame, robuxLabel(pass), ROBUX[1], ROBUX[2], function()
 				actionRemote:FireServer("Prompt", pass.Key)
 			end)
+			useRealPrice(label, "Pass", pass.Id)
 		end
 	end
 end
@@ -200,24 +252,46 @@ local function productCards()
 	for _, bundle in Shop.Bundles do
 		order += 1
 		local frame = card(order, PINK[1])
-		swatch(frame, Color3.fromRGB(255, 120, 190), nil, "🎁")
+		local art = swatch(frame, Color3.fromRGB(255, 120, 190), nil, "🎁")
+		useRealIcon(art, "Product", bundle.Id)
 		textLines(frame, bundle.Name, bundle.Blurb)
+		local isStarter = bundle.Key == "StarterBundle"
 		if bundlesOwned[bundle.Key] then
 			actionButton(frame, "Owned ✓", GREY[1], GREY[2], nil)
+		elseif isStarter and starterSecondsLeft() <= 0 then
+			actionButton(frame, "Offer ended", GREY[1], GREY[2], nil)
 		else
-			actionButton(frame, robuxLabel(bundle), ROBUX[1], ROBUX[2], function()
+			local label = actionButton(frame, robuxLabel(bundle), ROBUX[1], ROBUX[2], function()
 				actionRemote:FireServer("Prompt", bundle.Key)
 			end)
+			useRealPrice(label, "Product", bundle.Id)
+			if isStarter then
+				-- Countdown sits on the image so it's the first thing you see.
+				local timer = UI.label({
+					AnchorPoint = Vector2.new(0.5, 1),
+					Position = UDim2.new(0.5, 0, 0, 60),
+					Size = UDim2.new(1, -8, 0, 18),
+					Font = UI.BodyFont,
+					TextColor3 = Color3.fromRGB(255, 225, 120),
+					Text = "⏰ " .. ProductInfo.FormatTime(starterSecondsLeft()),
+					ZIndex = 3,
+					Parent = art,
+				})
+				UI.textStroke(1.5).Parent = timer
+				table.insert(timerLabels, timer)
+			end
 		end
 	end
 	for _, product in Shop.Products do
 		order += 1
 		local frame = card(order, GOLD[1])
-		swatch(frame, Color3.fromRGB(255, 205, 60), nil, "💰 " .. product.Bonks)
+		local art = swatch(frame, Color3.fromRGB(255, 205, 60), nil, "💰 " .. product.Bonks)
+		useRealIcon(art, "Product", product.Id)
 		textLines(frame, product.Name, string.format("%d Bonks to spend on skins and trails.", product.Bonks))
-		actionButton(frame, robuxLabel(product), ROBUX[1], ROBUX[2], function()
+		local label = actionButton(frame, robuxLabel(product), ROBUX[1], ROBUX[2], function()
 			actionRemote:FireServer("Prompt", product.Key)
 		end)
+		useRealPrice(label, "Product", product.Id)
 	end
 end
 
@@ -423,8 +497,22 @@ function ShopController.Start()
 			ShopController.Toast(ok == true, message)
 		end
 	end)
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			local left = starterSecondsLeft()
+			for i = #timerLabels, 1, -1 do
+				local label = timerLabels[i]
+				if label.Parent then
+					label.Text = "⏰ " .. ProductInfo.FormatTime(left)
+				else
+					table.remove(timerLabels, i)
+				end
+			end
+		end
+	end)
 	player.AttributeChanged:Connect(function(attribute)
-		if attribute == "Bonks" or attribute == "Inventory" or string.sub(attribute, 1, 8) == "Equipped" or string.sub(attribute, 1, 5) == "Pass_" then
+		if attribute == "Bonks" or attribute == "Inventory" or string.sub(attribute, 1, 8) == "Equipped" or string.sub(attribute, 1, 5) == "Pass_" or attribute == "StarterOfferEndsAt" then
 			refresh()
 		end
 	end)

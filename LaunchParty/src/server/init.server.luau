@@ -1,6 +1,7 @@
 -- LAUNCH PARTY server bootstrap. Order matters: world -> data -> systems -> match loop.
 local Services = script:WaitForChild("Services")
 
+local AntiCheatService = require(Services.AntiCheatService)
 local ArenaService = require(Services.ArenaService)
 local BotService = require(Services.BotService)
 local CombatService = require(Services.CombatService)
@@ -20,6 +21,7 @@ DraftService.Init()
 ShopService.Init()
 QuestService.Init()
 RoundService.Init()
+AntiCheatService.Init()
 
 -- Practice dummies in the lobby so there's always something to launch.
 local lobby = Config.Lobby.Center

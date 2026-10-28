@@ -115,6 +115,16 @@ Config.Sounds = {
 	Coins = "rbxasset://sounds/electronicpingshort.wav",
 }
 
+Config.AntiCheat = {
+	Enabled = true,
+	KickAt = 8, -- strikes before a kick (never kicks in Studio)
+	StrikeDecay = 30, -- seconds for one strike to wear off
+	Window = 1, -- seconds of movement compared at once (smooths out lag)
+	WalkSlack = 1.6, -- allowed speed = WalkSpeed * this + 12
+	FlySlack = 12, -- studs above the max legal jump height
+	AntiKnockbackSpeed = 80, -- launches this fast must actually move the player
+}
+
 Config.Economy = {
 	MatchBonks = 10,
 	BonksPerPoint = 4,

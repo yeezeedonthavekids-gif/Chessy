@@ -12,7 +12,9 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
 local Net = require(Shared:WaitForChild("Net"))
+local Shop = require(Shared:WaitForChild("Shop"))
 
+local ProductInfo = require(script.Parent.ProductInfo)
 local ShopController = require(script.Parent.ShopController)
 local State = require(script.Parent.State)
 local TutorialController = require(script.Parent.TutorialController)
@@ -360,6 +362,100 @@ local function buildProfile()
 		Parent = quests,
 	})
 	refs.Quests = quests
+end
+
+-- Limited-time Starter Bundle button (new players only, while the offer lasts).
+local function buildStarterOffer()
+	local bundle = Shop.Find(Shop.Bundles, "StarterBundle")
+	if not bundle then
+		return
+	end
+	local offer = UI.new("TextButton", {
+		Name = "StarterOffer",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -12, 0.62, 0),
+		Size = UDim2.new(0, 140, 0, 156),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		AutoButtonColor = false,
+		Text = "",
+		Visible = false,
+		Parent = gui,
+	}, {
+		UI.corner(14),
+		UI.gradient(Color3.fromRGB(110, 40, 30), Color3.fromRGB(40, 16, 18)),
+		UI.stroke(Color3.fromRGB(255, 205, 80), 2),
+	})
+	local image = UI.new("ImageLabel", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 6),
+		Size = UDim2.new(0, 70, 0, 70),
+		BackgroundTransparency = 1,
+		ScaleType = Enum.ScaleType.Fit,
+		Parent = offer,
+	}, { UI.corner(10) })
+	local placeholder = UI.label({ Size = UDim2.fromScale(1, 1), Text = "🎁", Parent = image })
+	UI.label({
+		Position = UDim2.new(0, 6, 0, 78),
+		Size = UDim2.new(1, -12, 0, 20),
+		Text = "STARTER BUNDLE",
+		TextColor3 = Color3.fromRGB(255, 225, 140),
+		Parent = offer,
+	})
+	local timer = UI.label({
+		Position = UDim2.new(0, 6, 0, 98),
+		Size = UDim2.new(1, -12, 0, 18),
+		Font = UI.BodyFont,
+		Text = "",
+		Parent = offer,
+	})
+	local priceButton, priceLabel = UI.button("R$ " .. tostring(bundle.Robux), Color3.fromRGB(90, 220, 140), Color3.fromRGB(20, 160, 110), {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -6),
+		Size = UDim2.new(1, -14, 0, 30),
+		Parent = offer,
+	})
+
+	ProductInfo.Get("Product", bundle.Id, function(info)
+		if info.Icon then
+			image.Image = info.Icon
+			placeholder:Destroy()
+		end
+		if info.Price then
+			priceLabel.Text = "R$ " .. info.Price
+		end
+	end)
+
+	local function buy()
+		Net.Event("ShopAction"):FireServer("Prompt", "StarterBundle")
+	end
+	offer.Activated:Connect(buy)
+	priceButton.Activated:Connect(buy)
+
+	-- Gentle pulse so it catches the eye without being annoying.
+	local scale = UI.new("UIScale", { Parent = offer })
+	task.spawn(function()
+		while offer.Parent do
+			if offer.Visible then
+				UI.tween(scale, 0.6, { Scale = 1.05 }, Enum.EasingStyle.Sine)
+				task.wait(0.6)
+				UI.tween(scale, 0.6, { Scale = 1 }, Enum.EasingStyle.Sine)
+				task.wait(2.4)
+			else
+				task.wait(1)
+			end
+		end
+	end)
+	task.spawn(function()
+		while offer.Parent do
+			local endsAt = player:GetAttribute("StarterOfferEndsAt")
+			local left = if type(endsAt) == "number" then endsAt - os.time() else 0
+			offer.Visible = bundle.Id ~= 0 and left > 0
+			if left > 0 then
+				timer.Text = "⏰ " .. ProductInfo.FormatTime(left)
+			end
+			task.wait(1)
+		end
+	end)
 end
 
 local function refreshQuests()
@@ -784,6 +880,7 @@ function HUDController.Start()
 	refreshProfile()
 	refreshQuests()
 	player:GetAttributeChangedSignal("Quests"):Connect(refreshQuests)
+	buildStarterOffer()
 
 	-- Our own heat is on the HUD, so hide the floating tag above our head.
 	local function hideOwnTag(character: Model)

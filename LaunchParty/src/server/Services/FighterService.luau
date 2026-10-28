@@ -54,6 +54,8 @@ export type Fighter = {
 	TrailTier: number,
 	TrailOverride: ColorSequence?,
 	VIP: boolean,
+	TeleportGraceUntil: number,
+	LastLaunch: { Time: number, Position: Vector3, Speed: number }?,
 	Brain: any?,
 	Home: CFrame?,
 }
@@ -105,6 +107,8 @@ function FighterService.New(id: string, name: string, options: { Player: Player?
 		TrailTier = 1,
 		TrailOverride = nil,
 		VIP = false,
+		TeleportGraceUntil = 0,
+		LastLaunch = nil,
 		Brain = nil,
 		Home = nil,
 	}
@@ -421,6 +425,8 @@ function FighterService.ApplyKnockback(fighter: Fighter, velocity: Vector3, tumb
 		FighterService.SetCharging(fighter, false)
 	end
 	if fighter.Player then
+		local root = fighter.Root :: BasePart
+		fighter.LastLaunch = { Time = os.clock(), Position = root.Position, Speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude }
 		knockbackRemote:FireClient(fighter.Player, velocity, tumble)
 	else
 		local stop = if tumble > 0 and velocity.Magnitude > 1 then Movement.HitstopFor(velocity.Magnitude) else 0
@@ -432,7 +438,9 @@ function FighterService.Teleport(fighter: Fighter, cframe: CFrame)
 	if not FighterService.IsAlive(fighter) then
 		return
 	end
-	(fighter.Model :: Model):PivotTo(cframe)
+	fighter.TeleportGraceUntil = os.clock() + 1.5
+	local model = fighter.Model :: Model
+	model:PivotTo(cframe)
 	FighterService.ApplyKnockback(fighter, Vector3.zero, 0)
 end
 

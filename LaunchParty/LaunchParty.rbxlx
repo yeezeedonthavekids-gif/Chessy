@@ -127,6 +127,16 @@ Config.Sounds = {
 	Coins = "rbxasset://sounds/electronicpingshort.wav",
 }
 
+Config.AntiCheat = {
+	Enabled = true,
+	KickAt = 8, -- strikes before a kick (never kicks in Studio)
+	StrikeDecay = 30, -- seconds for one strike to wear off
+	Window = 1, -- seconds of movement compared at once (smooths out lag)
+	WalkSlack = 1.6, -- allowed speed = WalkSpeed * this + 12
+	FlySlack = 12, -- studs above the max legal jump height
+	AntiKnockbackSpeed = 80, -- launches this fast must actually move the player
+}
+
 Config.Economy = {
 	MatchBonks = 10,
 	BonksPerPoint = 4,
@@ -876,6 +886,9 @@ return Quests
 local Shop = {}
 
 Shop.Currency = "Bonks"
+
+-- New players get this long to buy the Starter Bundle (counted from their first visit).
+Shop.StarterOfferHours = 48
 
 local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
@@ -3409,6 +3422,7 @@ return Shop
 				<ProtectedString name="Source"><![CDATA[-- LAUNCH PARTY server bootstrap. Order matters: world -> data -> systems -> match loop.
 local Services = script:WaitForChild("Services")
 
+local AntiCheatService = require(Services.AntiCheatService)
 local ArenaService = require(Services.ArenaService)
 local BotService = require(Services.BotService)
 local CombatService = require(Services.CombatService)
@@ -3428,6 +3442,7 @@ DraftService.Init()
 ShopService.Init()
 QuestService.Init()
 RoundService.Init()
+AntiCheatService.Init()
 
 -- Practice dummies in the lobby so there's always something to launch.
 local lobby = Config.Lobby.Center
@@ -3443,6 +3458,193 @@ print("[LaunchParty] Server ready.")
 					<string name="Name">Services</string>
 				</Properties>
 				<Item class="ModuleScript" referent="RBX00000015">
+					<Properties>
+						<string name="Name">AntiCheatService</string>
+						<ProtectedString name="Source"><![CDATA[-- Simple server-side anticheat for the things a movement game cares about:
+--   * speed hacks / teleporting   (moving faster than anything legal allows)
+--   * flying                      (staying higher than any legal jump for too long)
+--   * ignoring knockback          (a big launch that doesn't move you at all)
+-- Combat, heat, points, purchases and stats are already decided by the server, so they
+-- can't be cheated from the client in the first place.
+--
+-- Suspicious movement gets rubber-banded back to the last good spot and adds a strike.
+-- Strikes wear off over time; too many in a short span = kick. Never kicks in Studio.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local ArenaService = require(script.Parent.ArenaService)
+local FighterService = require(script.Parent.FighterService)
+
+type Fighter = FighterService.Fighter
+
+local AntiCheatService = {}
+
+local AC = Config.AntiCheat
+local C = Config.Combat
+local CHECK_INTERVAL = 0.25
+
+type Sample = { Time: number, Position: Vector3 }
+type Track = {
+	Model: Model?,
+	Samples: { Sample },
+	LastGood: Vector3?,
+	HighSince: number?,
+	Strikes: number,
+	LastDecay: number,
+	CheckedLaunch: number,
+}
+
+local tracks: { [Player]: Track } = {}
+
+local function flat(vector: Vector3): Vector3
+	return Vector3.new(vector.X, 0, vector.Z)
+end
+
+-- After a launch you keep flying for a while even once the tumble ends.
+local function inLaunchGrace(fighter: Fighter, now: number): boolean
+	local airtime = 3 * (Config.Events.DefaultGravity / math.max(Workspace.Gravity, 1))
+	return now < fighter.TumbleUntil + airtime
+end
+
+local function strike(player: Player, track: Track, fighter: Fighter, reason: string, amount: number?)
+	track.Strikes += amount or 1
+	warn(string.format("[LaunchParty AntiCheat] %s: %s (strikes %d/%d)", player.Name, reason, track.Strikes, AC.KickAt))
+	if track.LastGood and FighterService.IsAlive(fighter) then
+		FighterService.Teleport(fighter, CFrame.new(track.LastGood + Vector3.new(0, 2, 0)))
+	end
+	table.clear(track.Samples)
+	track.HighSince = nil
+	if track.Strikes >= AC.KickAt and not RunService:IsStudio() then
+		player:Kick("Kicked for unusual movement. If that wasn't you cheating, sorry! Just rejoin.")
+	end
+end
+
+local function floorY(fighter: Fighter): number?
+	if fighter.Zone == "Arena" then
+		return ArenaService.GetCenter().Y
+	elseif fighter.Zone == "Lobby" then
+		return Config.Lobby.Center.Y
+	end
+	return nil
+end
+
+local function check(player: Player, now: number)
+	local fighter = FighterService.GetByPlayer(player)
+	if not fighter or not FighterService.IsAlive(fighter) then
+		return
+	end
+	local track = tracks[player]
+	if not track then
+		track = { Samples = {}, Strikes = 0, LastDecay = now, CheckedLaunch = 0 }
+		tracks[player] = track
+	end
+
+	-- Strikes wear off.
+	if now - track.LastDecay >= AC.StrikeDecay then
+		track.Strikes = math.max(0, track.Strikes - 1)
+		track.LastDecay = now
+	end
+
+	local root = fighter.Root :: BasePart
+	local humanoid = fighter.Humanoid :: Humanoid
+	local position = root.Position
+
+	-- New character or a server teleport: start fresh.
+	if track.Model ~= fighter.Model or now < fighter.TeleportGraceUntil then
+		track.Model = fighter.Model
+		table.clear(track.Samples)
+		track.LastGood = position
+		track.HighSince = nil
+		return
+	end
+
+	local launched = inLaunchGrace(fighter, now)
+	local dashed = now - fighter.DashUntil < 1.5
+
+	-- 1. Speed / teleport, measured over a ~1s window so lag spikes don't look like cheating.
+	table.insert(track.Samples, { Time = now, Position = position })
+	while #track.Samples > 2 and now - track.Samples[2].Time >= AC.Window do
+		table.remove(track.Samples, 1)
+	end
+	local oldest = track.Samples[1]
+	local elapsed = now - oldest.Time
+	if elapsed >= AC.Window * 0.9 then
+		local speed = flat(position - oldest.Position).Magnitude / elapsed
+		local allowed = humanoid.WalkSpeed * AC.WalkSlack + 12
+		if launched then
+			allowed = C.MaxKnockSpeed * 1.25 + 20
+		elseif dashed then
+			allowed = math.max(allowed, C.DashSpeed * 0.6 + 30)
+		end
+		if speed > allowed then
+			strike(player, track, fighter, string.format("moving too fast (%.0f > %.0f studs/s)", speed, allowed))
+			return
+		end
+		track.LastGood = oldest.Position
+	end
+
+	-- 2. Flying: higher than the best possible jump for more than a moment.
+	local floor = floorY(fighter)
+	if floor and not launched and not dashed then
+		local gravity = math.max(Workspace.Gravity, 1)
+		local maxJump = (humanoid.JumpPower ^ 2) / (2 * gravity)
+		local height = position.Y - floor
+		if height > maxJump + 4 + AC.FlySlack then
+			track.HighSince = track.HighSince or now
+			if now - track.HighSince > 1.5 then
+				strike(player, track, fighter, string.format("flying (%.0f studs up)", height))
+				return
+			end
+		else
+			track.HighSince = nil
+		end
+	else
+		track.HighSince = nil
+	end
+
+	-- 3. Ignoring knockback: a big launch should move you a good distance.
+	local launch = fighter.LastLaunch
+	if launch and launch.Time ~= track.CheckedLaunch and now - launch.Time >= 0.8 then
+		track.CheckedLaunch = launch.Time
+		if fighter.Zone == "Arena" and fighter.Alive and launch.Speed >= AC.AntiKnockbackSpeed and not dashed then
+			local moved = flat(position - launch.Position).Magnitude
+			if moved < 3 then
+				strike(player, track, fighter, string.format("ignored a %.0f studs/s launch", launch.Speed), 2)
+			end
+		end
+	end
+end
+
+function AntiCheatService.Init()
+	if not AC.Enabled then
+		return
+	end
+	Players.PlayerRemoving:Connect(function(player)
+		tracks[player] = nil
+	end)
+	task.spawn(function()
+		while true do
+			task.wait(CHECK_INTERVAL)
+			local now = os.clock()
+			for _, player in Players:GetPlayers() do
+				local ok, err = pcall(check, player, now)
+				if not ok then
+					warn("[LaunchParty AntiCheat] check failed:", err)
+				end
+			end
+		end
+	end)
+end
+
+return AntiCheatService
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX00000016">
 					<Properties>
 						<string name="Name">ArenaService</string>
 						<ProtectedString name="Source"><![CDATA[-- Builds the world: sky and lighting themes, the lobby, and a fresh floating-island arena every round.
@@ -4368,7 +4570,7 @@ return ArenaService
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000016">
+				<Item class="ModuleScript" referent="RBX00000017">
 					<Properties>
 						<string name="Name">BotService</string>
 						<ProtectedString name="Source"><![CDATA[-- Bots keep matches lively when the server is quiet, and dummies give the lobby something to punch.
@@ -4944,7 +5146,7 @@ return BotService
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000017">
+				<Item class="ModuleScript" referent="RBX00000018">
 					<Properties>
 						<string name="Name">CombatService</string>
 						<ProtectedString name="Source"><![CDATA[-- Server-authoritative combat. Clients only *request* actions; the server validates timing,
@@ -5346,7 +5548,7 @@ return CombatService
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000018">
+				<Item class="ModuleScript" referent="RBX00000019">
 					<Properties>
 						<string name="Name">DataService</string>
 						<ProtectedString name="Source"><![CDATA[-- Saved player profiles: XP, stats, Bonks, owned cosmetics, purchases.
@@ -5362,6 +5564,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local Perks = require(Shared.Perks)
 local Progression = require(Shared.Progression)
+local Shop = require(Shared.Shop)
 
 local DataService = {}
 
@@ -5408,6 +5611,7 @@ local function defaultData(): { [string]: any }
 		TutorialDone = false,
 		QuestDay = 0,
 		Quests = {},
+		FirstJoin = 0,
 	}
 end
 
@@ -5474,6 +5678,7 @@ local function publish(player: Player)
 	player:SetAttribute("EquippedSkin", data.EquippedSkin)
 	player:SetAttribute("EquippedTrail", data.EquippedTrail)
 	player:SetAttribute("TutorialDone", data.TutorialDone)
+	player:SetAttribute("StarterOfferEndsAt", DataService.StarterOfferEndsAt(player))
 	player:SetAttribute(
 		"Inventory",
 		HttpService:JSONEncode({
@@ -5526,6 +5731,10 @@ function DataService.Load(player: Player)
 		return
 	end
 	profiles[player] = { Data = reconcile(data), Persistent = persistent, Dirty = false }
+	if profiles[player].Data.FirstJoin == 0 then
+		profiles[player].Data.FirstJoin = os.time()
+		profiles[player].Dirty = true
+	end
 	createLeaderstats(player)
 	publish(player)
 	loadedEvent:Fire(player)
@@ -5562,6 +5771,20 @@ function DataService.SaveNow(player: Player): boolean
 		return true
 	end
 	return write(player, profile)
+end
+
+-- Unix time the Starter Bundle offer ends, or 0 if it's gone (bought or expired).
+function DataService.StarterOfferEndsAt(player: Player): number
+	local profile = profiles[player]
+	if not profile then
+		return 0
+	end
+	local data = profile.Data
+	local endsAt = data.FirstJoin + Shop.StarterOfferHours * 3600
+	if data.Bundles.StarterBundle or os.time() >= endsAt then
+		return 0
+	end
+	return endsAt
 end
 
 function DataService.IsLoaded(player: Player): boolean
@@ -5742,7 +5965,7 @@ return DataService
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000019">
+				<Item class="ModuleScript" referent="RBX0000001A">
 					<Properties>
 						<string name="Name">DraftService</string>
 						<ProtectedString name="Source"><![CDATA[-- Between rounds every fighter picks 1 of 3 perk cards. Low placers get luckier rolls.
@@ -5897,7 +6120,7 @@ return DraftService
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX0000001A">
+				<Item class="ModuleScript" referent="RBX0000001B">
 					<Properties>
 						<string name="Name">EventService</string>
 						<ProtectedString name="Source"><![CDATA[-- Round modifiers. Each event has Start() which returns a cleanup function.
@@ -6220,7 +6443,7 @@ return EventService
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX0000001B">
+				<Item class="ModuleScript" referent="RBX0000001C">
 					<Properties>
 						<string name="Name">FighterService</string>
 						<ProtectedString name="Source"><![CDATA[-- Registry of every combatant (players, bots, lobby dummies) plus their match state.
@@ -6279,6 +6502,8 @@ export type Fighter = {
 	TrailTier: number,
 	TrailOverride: ColorSequence?,
 	VIP: boolean,
+	TeleportGraceUntil: number,
+	LastLaunch: { Time: number, Position: Vector3, Speed: number }?,
 	Brain: any?,
 	Home: CFrame?,
 }
@@ -6330,6 +6555,8 @@ function FighterService.New(id: string, name: string, options: { Player: Player?
 		TrailTier = 1,
 		TrailOverride = nil,
 		VIP = false,
+		TeleportGraceUntil = 0,
+		LastLaunch = nil,
 		Brain = nil,
 		Home = nil,
 	}
@@ -6646,6 +6873,8 @@ function FighterService.ApplyKnockback(fighter: Fighter, velocity: Vector3, tumb
 		FighterService.SetCharging(fighter, false)
 	end
 	if fighter.Player then
+		local root = fighter.Root :: BasePart
+		fighter.LastLaunch = { Time = os.clock(), Position = root.Position, Speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude }
 		knockbackRemote:FireClient(fighter.Player, velocity, tumble)
 	else
 		local stop = if tumble > 0 and velocity.Magnitude > 1 then Movement.HitstopFor(velocity.Magnitude) else 0
@@ -6657,7 +6886,9 @@ function FighterService.Teleport(fighter: Fighter, cframe: CFrame)
 	if not FighterService.IsAlive(fighter) then
 		return
 	end
-	(fighter.Model :: Model):PivotTo(cframe)
+	fighter.TeleportGraceUntil = os.clock() + 1.5
+	local model = fighter.Model :: Model
+	model:PivotTo(cframe)
 	FighterService.ApplyKnockback(fighter, Vector3.zero, 0)
 end
 
@@ -6698,7 +6929,7 @@ return FighterService
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX0000001C">
+				<Item class="ModuleScript" referent="RBX0000001D">
 					<Properties>
 						<string name="Name">QuestService</string>
 						<ProtectedString name="Source"><![CDATA[-- Daily quests: tracks progress, pays out Bonks when one's done, resets every day.
@@ -6817,7 +7048,7 @@ return QuestService
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX0000001D">
+				<Item class="ModuleScript" referent="RBX0000001E">
 					<Properties>
 						<string name="Name">RoundService</string>
 						<ProtectedString name="Source"><![CDATA[-- The match loop: Waiting -> Intermission -> [Countdown -> Live -> RoundEnd -> Draft] x N -> MatchEnd.
@@ -7530,7 +7761,7 @@ return RoundService
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX0000001E">
+				<Item class="ModuleScript" referent="RBX0000001F">
 					<Properties>
 						<string name="Name">ShopService</string>
 						<ProtectedString name="Source"><![CDATA[-- Shop: Bonks purchases, equipping skins/trails, game passes and Robux developer products.
@@ -7706,6 +7937,8 @@ local function prompt(player: Player, key: string)
 			tell(player, false, product.Name .. " isn't for sale yet.")
 		elseif product.OneTime and data.Bundles[product.Key] then
 			tell(player, false, "You already got the " .. product.Name .. ".")
+		elseif product.Key == "StarterBundle" and DataService.StarterOfferEndsAt(player) == 0 then
+			tell(player, false, "The Starter Bundle offer has ended.")
 		else
 			MarketplaceService:PromptProductPurchase(player, product.Id)
 		end
@@ -7855,16 +8088,16 @@ return ShopService
 			</Item>
 		</Item>
 	</Item>
-	<Item class="StarterPlayer" referent="RBX0000001F">
+	<Item class="StarterPlayer" referent="RBX00000020">
 		<Properties>
 			<string name="Name">StarterPlayer</string>
 			<float name="CameraMaxZoomDistance">45</float>
 		</Properties>
-		<Item class="StarterPlayerScripts" referent="RBX00000020">
+		<Item class="StarterPlayerScripts" referent="RBX00000021">
 			<Properties>
 				<string name="Name">StarterPlayerScripts</string>
 			</Properties>
-			<Item class="LocalScript" referent="RBX00000021">
+			<Item class="LocalScript" referent="RBX00000022">
 				<Properties>
 					<string name="Name">Client</string>
 					<ProtectedString name="Source"><![CDATA[-- LAUNCH PARTY client bootstrap.
@@ -7894,11 +8127,11 @@ for _, name in ORDER do
 end
 ]]></ProtectedString>
 				</Properties>
-				<Item class="Folder" referent="RBX00000022">
+				<Item class="Folder" referent="RBX00000023">
 					<Properties>
 						<string name="Name">Controllers</string>
 					</Properties>
-					<Item class="ModuleScript" referent="RBX00000023">
+					<Item class="ModuleScript" referent="RBX00000024">
 						<Properties>
 							<string name="Name">AnimationController</string>
 							<ProtectedString name="Source"><![CDATA[-- Animations. Punches (jab, wind-up, haymaker) use real animations from
@@ -8342,7 +8575,7 @@ return AnimationController
 ]]></ProtectedString>
 						</Properties>
 					</Item>
-					<Item class="ModuleScript" referent="RBX00000024">
+					<Item class="ModuleScript" referent="RBX00000025">
 						<Properties>
 							<string name="Name">DraftController</string>
 							<ProtectedString name="Source"><![CDATA[-- Between-round card picker. Click, tap, press 1/2/3, or use a gamepad.
@@ -8629,7 +8862,7 @@ return DraftController
 ]]></ProtectedString>
 						</Properties>
 					</Item>
-					<Item class="ModuleScript" referent="RBX00000025">
+					<Item class="ModuleScript" referent="RBX00000026">
 						<Properties>
 							<string name="Name">EffectsController</string>
 							<ProtectedString name="Source"><![CDATA[-- Juice: applies knockback to our own character and renders every hit, blast and gust locally.
@@ -9022,7 +9255,7 @@ return EffectsController
 ]]></ProtectedString>
 						</Properties>
 					</Item>
-					<Item class="ModuleScript" referent="RBX00000026">
+					<Item class="ModuleScript" referent="RBX00000027">
 						<Properties>
 							<string name="Name">HUDController</string>
 							<ProtectedString name="Source"><![CDATA[-- The whole heads-up display, built in code.
@@ -9039,7 +9272,9 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
 local Net = require(Shared:WaitForChild("Net"))
+local Shop = require(Shared:WaitForChild("Shop"))
 
+local ProductInfo = require(script.Parent.ProductInfo)
 local ShopController = require(script.Parent.ShopController)
 local State = require(script.Parent.State)
 local TutorialController = require(script.Parent.TutorialController)
@@ -9387,6 +9622,100 @@ local function buildProfile()
 		Parent = quests,
 	})
 	refs.Quests = quests
+end
+
+-- Limited-time Starter Bundle button (new players only, while the offer lasts).
+local function buildStarterOffer()
+	local bundle = Shop.Find(Shop.Bundles, "StarterBundle")
+	if not bundle then
+		return
+	end
+	local offer = UI.new("TextButton", {
+		Name = "StarterOffer",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -12, 0.62, 0),
+		Size = UDim2.new(0, 140, 0, 156),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		AutoButtonColor = false,
+		Text = "",
+		Visible = false,
+		Parent = gui,
+	}, {
+		UI.corner(14),
+		UI.gradient(Color3.fromRGB(110, 40, 30), Color3.fromRGB(40, 16, 18)),
+		UI.stroke(Color3.fromRGB(255, 205, 80), 2),
+	})
+	local image = UI.new("ImageLabel", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 6),
+		Size = UDim2.new(0, 70, 0, 70),
+		BackgroundTransparency = 1,
+		ScaleType = Enum.ScaleType.Fit,
+		Parent = offer,
+	}, { UI.corner(10) })
+	local placeholder = UI.label({ Size = UDim2.fromScale(1, 1), Text = "🎁", Parent = image })
+	UI.label({
+		Position = UDim2.new(0, 6, 0, 78),
+		Size = UDim2.new(1, -12, 0, 20),
+		Text = "STARTER BUNDLE",
+		TextColor3 = Color3.fromRGB(255, 225, 140),
+		Parent = offer,
+	})
+	local timer = UI.label({
+		Position = UDim2.new(0, 6, 0, 98),
+		Size = UDim2.new(1, -12, 0, 18),
+		Font = UI.BodyFont,
+		Text = "",
+		Parent = offer,
+	})
+	local priceButton, priceLabel = UI.button("R$ " .. tostring(bundle.Robux), Color3.fromRGB(90, 220, 140), Color3.fromRGB(20, 160, 110), {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -6),
+		Size = UDim2.new(1, -14, 0, 30),
+		Parent = offer,
+	})
+
+	ProductInfo.Get("Product", bundle.Id, function(info)
+		if info.Icon then
+			image.Image = info.Icon
+			placeholder:Destroy()
+		end
+		if info.Price then
+			priceLabel.Text = "R$ " .. info.Price
+		end
+	end)
+
+	local function buy()
+		Net.Event("ShopAction"):FireServer("Prompt", "StarterBundle")
+	end
+	offer.Activated:Connect(buy)
+	priceButton.Activated:Connect(buy)
+
+	-- Gentle pulse so it catches the eye without being annoying.
+	local scale = UI.new("UIScale", { Parent = offer })
+	task.spawn(function()
+		while offer.Parent do
+			if offer.Visible then
+				UI.tween(scale, 0.6, { Scale = 1.05 }, Enum.EasingStyle.Sine)
+				task.wait(0.6)
+				UI.tween(scale, 0.6, { Scale = 1 }, Enum.EasingStyle.Sine)
+				task.wait(2.4)
+			else
+				task.wait(1)
+			end
+		end
+	end)
+	task.spawn(function()
+		while offer.Parent do
+			local endsAt = player:GetAttribute("StarterOfferEndsAt")
+			local left = if type(endsAt) == "number" then endsAt - os.time() else 0
+			offer.Visible = bundle.Id ~= 0 and left > 0
+			if left > 0 then
+				timer.Text = "⏰ " .. ProductInfo.FormatTime(left)
+			end
+			task.wait(1)
+		end
+	end)
 end
 
 local function refreshQuests()
@@ -9811,6 +10140,7 @@ function HUDController.Start()
 	refreshProfile()
 	refreshQuests()
 	player:GetAttributeChangedSignal("Quests"):Connect(refreshQuests)
+	buildStarterOffer()
 
 	-- Our own heat is on the HUD, so hide the floating tag above our head.
 	local function hideOwnTag(character: Model)
@@ -9866,7 +10196,7 @@ return HUDController
 ]]></ProtectedString>
 						</Properties>
 					</Item>
-					<Item class="ModuleScript" referent="RBX00000027">
+					<Item class="ModuleScript" referent="RBX00000028">
 						<Properties>
 							<string name="Name">InputController</string>
 							<ProtectedString name="Source"><![CDATA[-- Input: punch (tap) / charged punch (hold) / dash. Animations, sounds and dash movement are
@@ -10076,7 +10406,71 @@ return InputController
 ]]></ProtectedString>
 						</Properties>
 					</Item>
-					<Item class="ModuleScript" referent="RBX00000028">
+					<Item class="ModuleScript" referent="RBX00000029">
+						<Properties>
+							<string name="Name">ProductInfo</string>
+							<ProtectedString name="Source"><![CDATA[-- Fetches the real price and icon of passes / developer products from Roblox (cached).
+-- So the shop always shows exactly what you set on the website, including the image you uploaded.
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local ProductInfo = {}
+
+export type Info = { Price: number?, Icon: string? }
+
+local cache: { [string]: Info } = {}
+local pending: { [string]: { (Info) -> () } } = {}
+
+-- kind: "Pass" | "Product". Calls `callback(info)` once loaded (immediately if cached).
+function ProductInfo.Get(kind: string, id: number, callback: (Info) -> ())
+	if id == 0 then
+		return
+	end
+	local key = kind .. id
+	if cache[key] then
+		callback(cache[key])
+		return
+	end
+	if pending[key] then
+		table.insert(pending[key], callback)
+		return
+	end
+	pending[key] = { callback }
+	task.spawn(function()
+		local infoType = if kind == "Pass" then Enum.InfoType.GamePass else Enum.InfoType.Product
+		local info: Info = {}
+		for attempt = 1, 3 do
+			local ok, result = pcall(function()
+				return MarketplaceService:GetProductInfo(id, infoType)
+			end)
+			if ok and type(result) == "table" then
+				info.Price = result.PriceInRobux
+				local iconId = result.IconImageAssetId
+				if type(iconId) == "number" and iconId > 0 then
+					info.Icon = "rbxassetid://" .. iconId
+				end
+				break
+			end
+			task.wait(attempt)
+		end
+		cache[key] = info
+		local callbacks = pending[key]
+		pending[key] = nil
+		for _, fn in callbacks do
+			task.spawn(fn, info)
+		end
+	end)
+end
+
+function ProductInfo.FormatTime(seconds: number): string
+	seconds = math.max(0, math.floor(seconds))
+	return string.format("%d:%02d:%02d", seconds // 3600, (seconds % 3600) // 60, seconds % 60)
+end
+
+return ProductInfo
+]]></ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX0000002A">
 						<Properties>
 							<string name="Name">ShopController</string>
 							<ProtectedString name="Source"><![CDATA[-- The shop window: skins and trails (Bonks), game passes, Bonks packs and bundles (Robux).
@@ -10089,6 +10483,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared:WaitForChild("Net"))
 local Shop = require(Shared:WaitForChild("Shop"))
 
+local ProductInfo = require(script.Parent.ProductInfo)
 local UI = require(script.Parent.UI)
 
 local ShopController = {}
@@ -10156,7 +10551,7 @@ local function card(order: number, accent: Color3): Frame
 	})
 end
 
-local function swatch(parent: Frame, color: Color3?, sequence: ColorSequence?, icon: string?)
+local function swatch(parent: Frame, color: Color3?, sequence: ColorSequence?, icon: string?): Frame
 	local frame = UI.new("Frame", {
 		Size = UDim2.new(1, 0, 0, 62),
 		BackgroundColor3 = color or Color3.new(1, 1, 1),
@@ -10171,9 +10566,57 @@ local function swatch(parent: Frame, color: Color3?, sequence: ColorSequence?, i
 		})
 	end
 	if icon then
-		local label = UI.label({ Size = UDim2.fromScale(1, 1), Text = icon, Parent = frame })
+		local label = UI.label({ Name = "Emoji", Size = UDim2.fromScale(1, 1), Text = icon, Parent = frame })
 		UI.textStroke(2).Parent = label
 	end
+	return frame
+end
+
+-- Swap the placeholder swatch for the real icon uploaded on the Roblox website, once it loads.
+local function useRealIcon(frame: Frame, kind: string, id: number)
+	ProductInfo.Get(kind, id, function(info)
+		if not info.Icon or not frame.Parent then
+			return
+		end
+		local emoji = frame:FindFirstChild("Emoji")
+		if emoji then
+			emoji:Destroy()
+		end
+		frame.BackgroundColor3 = Color3.fromRGB(20, 22, 34)
+		local gradient = frame:FindFirstChildOfClass("UIGradient")
+		if gradient then
+			gradient:Destroy()
+		end
+		UI.new("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(0, 60, 0, 60),
+			BackgroundTransparency = 1,
+			Image = info.Icon,
+			ScaleType = Enum.ScaleType.Fit,
+			Parent = frame,
+		}, { UI.corner(10) })
+	end)
+end
+
+-- Show the real Robux price from Roblox on the buy button.
+local function useRealPrice(label: TextLabel, kind: string, id: number, suffix: string?)
+	ProductInfo.Get(kind, id, function(info)
+		if info.Price and label.Parent then
+			label.Text = "R$ " .. info.Price .. (suffix or "")
+		end
+	end)
+end
+
+-- Labels showing the Starter Bundle countdown; refreshed once a second.
+local timerLabels: { TextLabel } = {}
+
+local function starterSecondsLeft(): number
+	local endsAt = player:GetAttribute("StarterOfferEndsAt")
+	if type(endsAt) ~= "number" or endsAt <= 0 then
+		return 0
+	end
+	return math.max(0, endsAt - os.time())
 end
 
 local function textLines(parent: Frame, title: string, blurb: string?)
@@ -10197,8 +10640,8 @@ local function textLines(parent: Frame, title: string, blurb: string?)
 	})
 end
 
-local function actionButton(parent: Frame, text: string, top: Color3, bottom: Color3, onClick: (() -> ())?)
-	local button = UI.button(text, top, bottom, {
+local function actionButton(parent: Frame, text: string, top: Color3, bottom: Color3, onClick: (() -> ())?): TextLabel
+	local button, label = UI.button(text, top, bottom, {
 		AnchorPoint = Vector2.new(0, 1),
 		Position = UDim2.new(0, 0, 1, 0),
 		Size = UDim2.new(1, 0, 0, 32),
@@ -10210,6 +10653,7 @@ local function actionButton(parent: Frame, text: string, top: Color3, bottom: Co
 		button.Active = false
 		button.AutoButtonColor = false
 	end
+	return label
 end
 
 local GREEN = { Color3.fromRGB(110, 230, 120), Color3.fromRGB(40, 170, 90) }
@@ -10263,14 +10707,16 @@ end
 local function passCards()
 	for order, pass in Shop.Passes do
 		local frame = card(order, GOLD[1])
-		swatch(frame, Color3.fromRGB(255, 190, 60), nil, PASS_ICONS[pass.Key] or "🎟️")
+		local art = swatch(frame, Color3.fromRGB(255, 190, 60), nil, PASS_ICONS[pass.Key] or "🎟️")
+		useRealIcon(art, "Pass", pass.Id)
 		textLines(frame, pass.Name, pass.Blurb)
 		if player:GetAttribute("Pass_" .. pass.Key) then
 			actionButton(frame, "Owned ✓", GREY[1], GREY[2], nil)
 		else
-			actionButton(frame, robuxLabel(pass), ROBUX[1], ROBUX[2], function()
+			local label = actionButton(frame, robuxLabel(pass), ROBUX[1], ROBUX[2], function()
 				actionRemote:FireServer("Prompt", pass.Key)
 			end)
+			useRealPrice(label, "Pass", pass.Id)
 		end
 	end
 end
@@ -10281,24 +10727,46 @@ local function productCards()
 	for _, bundle in Shop.Bundles do
 		order += 1
 		local frame = card(order, PINK[1])
-		swatch(frame, Color3.fromRGB(255, 120, 190), nil, "🎁")
+		local art = swatch(frame, Color3.fromRGB(255, 120, 190), nil, "🎁")
+		useRealIcon(art, "Product", bundle.Id)
 		textLines(frame, bundle.Name, bundle.Blurb)
+		local isStarter = bundle.Key == "StarterBundle"
 		if bundlesOwned[bundle.Key] then
 			actionButton(frame, "Owned ✓", GREY[1], GREY[2], nil)
+		elseif isStarter and starterSecondsLeft() <= 0 then
+			actionButton(frame, "Offer ended", GREY[1], GREY[2], nil)
 		else
-			actionButton(frame, robuxLabel(bundle), ROBUX[1], ROBUX[2], function()
+			local label = actionButton(frame, robuxLabel(bundle), ROBUX[1], ROBUX[2], function()
 				actionRemote:FireServer("Prompt", bundle.Key)
 			end)
+			useRealPrice(label, "Product", bundle.Id)
+			if isStarter then
+				-- Countdown sits on the image so it's the first thing you see.
+				local timer = UI.label({
+					AnchorPoint = Vector2.new(0.5, 1),
+					Position = UDim2.new(0.5, 0, 0, 60),
+					Size = UDim2.new(1, -8, 0, 18),
+					Font = UI.BodyFont,
+					TextColor3 = Color3.fromRGB(255, 225, 120),
+					Text = "⏰ " .. ProductInfo.FormatTime(starterSecondsLeft()),
+					ZIndex = 3,
+					Parent = art,
+				})
+				UI.textStroke(1.5).Parent = timer
+				table.insert(timerLabels, timer)
+			end
 		end
 	end
 	for _, product in Shop.Products do
 		order += 1
 		local frame = card(order, GOLD[1])
-		swatch(frame, Color3.fromRGB(255, 205, 60), nil, "💰 " .. product.Bonks)
+		local art = swatch(frame, Color3.fromRGB(255, 205, 60), nil, "💰 " .. product.Bonks)
+		useRealIcon(art, "Product", product.Id)
 		textLines(frame, product.Name, string.format("%d Bonks to spend on skins and trails.", product.Bonks))
-		actionButton(frame, robuxLabel(product), ROBUX[1], ROBUX[2], function()
+		local label = actionButton(frame, robuxLabel(product), ROBUX[1], ROBUX[2], function()
 			actionRemote:FireServer("Prompt", product.Key)
 		end)
+		useRealPrice(label, "Product", product.Id)
 	end
 end
 
@@ -10504,8 +10972,22 @@ function ShopController.Start()
 			ShopController.Toast(ok == true, message)
 		end
 	end)
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			local left = starterSecondsLeft()
+			for i = #timerLabels, 1, -1 do
+				local label = timerLabels[i]
+				if label.Parent then
+					label.Text = "⏰ " .. ProductInfo.FormatTime(left)
+				else
+					table.remove(timerLabels, i)
+				end
+			end
+		end
+	end)
 	player.AttributeChanged:Connect(function(attribute)
-		if attribute == "Bonks" or attribute == "Inventory" or string.sub(attribute, 1, 8) == "Equipped" or string.sub(attribute, 1, 5) == "Pass_" then
+		if attribute == "Bonks" or attribute == "Inventory" or string.sub(attribute, 1, 8) == "Equipped" or string.sub(attribute, 1, 5) == "Pass_" or attribute == "StarterOfferEndsAt" then
 			refresh()
 		end
 	end)
@@ -10515,7 +10997,7 @@ return ShopController
 ]]></ProtectedString>
 						</Properties>
 					</Item>
-					<Item class="ModuleScript" referent="RBX00000029">
+					<Item class="ModuleScript" referent="RBX0000002B">
 						<Properties>
 							<string name="Name">SpectateController</string>
 							<ProtectedString name="Source"><![CDATA[-- Knocked out? The camera follows the fight instead of leaving you on the balcony.
@@ -10763,7 +11245,7 @@ return SpectateController
 ]]></ProtectedString>
 						</Properties>
 					</Item>
-					<Item class="ModuleScript" referent="RBX0000002A">
+					<Item class="ModuleScript" referent="RBX0000002C">
 						<Properties>
 							<string name="Name">State</string>
 							<ProtectedString name="Source"><![CDATA[-- Tiny shared client state so controllers can talk without depending on each other.
@@ -10794,7 +11276,7 @@ return State
 ]]></ProtectedString>
 						</Properties>
 					</Item>
-					<Item class="ModuleScript" referent="RBX0000002B">
+					<Item class="ModuleScript" referent="RBX0000002D">
 						<Properties>
 							<string name="Name">TutorialController</string>
 							<ProtectedString name="Source"><![CDATA[-- First-time tutorial. Some steps wait for you to actually do the thing (punch, charge, dash).
@@ -11095,7 +11577,7 @@ return TutorialController
 ]]></ProtectedString>
 						</Properties>
 					</Item>
-					<Item class="ModuleScript" referent="RBX0000002C">
+					<Item class="ModuleScript" referent="RBX0000002E">
 						<Properties>
 							<string name="Name">UI</string>
 							<ProtectedString name="Source"><![CDATA[-- Small helpers for building GUIs in code.

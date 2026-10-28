@@ -171,6 +171,8 @@ local function prompt(player: Player, key: string)
 			tell(player, false, product.Name .. " isn't for sale yet.")
 		elseif product.OneTime and data.Bundles[product.Key] then
 			tell(player, false, "You already got the " .. product.Name .. ".")
+		elseif product.Key == "StarterBundle" and DataService.StarterOfferEndsAt(player) == 0 then
+			tell(player, false, "The Starter Bundle offer has ended.")
 		else
 			MarketplaceService:PromptProductPurchase(player, product.Id)
 		end

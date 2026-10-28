@@ -11,6 +11,9 @@ local Shop = {}
 
 Shop.Currency = "Bonks"
 
+-- New players get this long to buy the Starter Bundle (counted from their first visit).
+Shop.StarterOfferHours = 48
+
 local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
 end
