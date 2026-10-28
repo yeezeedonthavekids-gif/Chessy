@@ -933,18 +933,18 @@ Shop.Trails = {
 
 -- Game passes (one-time Robux purchases).
 Shop.Passes = {
-	{ Key = "VIP", Name = "VIP", Id = 0, Robux = 199, Blurb = "Double Bonks from every match, a gold name, and the VIP Drip skin." },
-	{ Key = "DoubleXP", Name = "2x XP", Id = 0, Robux = 149, Blurb = "Level up twice as fast and unlock perks sooner." },
-	{ Key = "Reroll", Name = "Card Shark", Id = 0, Robux = 99, Blurb = "Don't like your perk cards? Reroll them once every draft." },
-	{ Key = "RainbowTrail", Name = "Rainbow Trail", Id = 0, Robux = 79, Blurb = "Leave a rainbow behind you whenever you dash or go flying." },
+	{ Key = "VIP", Name = "VIP", Id = 2058617103, Robux = 199, Blurb = "Double Bonks from every match, a gold name, and the VIP Drip skin." },
+	{ Key = "DoubleXP", Name = "2x XP", Id = 2057003169, Robux = 149, Blurb = "Level up twice as fast and unlock perks sooner." },
+	{ Key = "Reroll", Name = "Card Shark", Id = 2058419115, Robux = 99, Blurb = "Don't like your perk cards? Reroll them once every draft." },
+	{ Key = "RainbowTrail", Name = "Rainbow Trail", Id = 2059511090, Robux = 79, Blurb = "Leave a rainbow behind you whenever you dash or go flying." },
 }
 
 -- Developer products (can be bought again and again).
 Shop.Products = {
-	{ Key = "Bonks100", Name = "Handful of Bonks", Id = 0, Robux = 25, Bonks = 100 },
-	{ Key = "Bonks550", Name = "Bag of Bonks", Id = 0, Robux = 99, Bonks = 550 },
-	{ Key = "Bonks1200", Name = "Big Bag of Bonks", Id = 0, Robux = 199, Bonks = 1200 },
-	{ Key = "Bonks3000", Name = "Bonk Vault", Id = 0, Robux = 449, Bonks = 3000 },
+	{ Key = "Bonks100", Name = "Handful of Bonks", Id = 2057057123, Robux = 25, Bonks = 100 },
+	{ Key = "Bonks550", Name = "Bag of Bonks", Id = 2058485141, Robux = 99, Bonks = 550 },
+	{ Key = "Bonks1200", Name = "Big Bag of Bonks", Id = 2057141128, Robux = 199, Bonks = 1200 },
+	{ Key = "Bonks3000", Name = "Bonk Vault", Id = 2057789081, Robux = 449, Bonks = 3000 },
 }
 
 -- Bundles are developer products too, but each one can only be bought once.
@@ -952,7 +952,7 @@ Shop.Bundles = {
 	{
 		Key = "StarterBundle",
 		Name = "Starter Bundle",
-		Id = 0,
+		Id = 2060207095,
 		Robux = 49,
 		Bonks = 300,
 		Skins = { "molten" },
@@ -963,7 +963,7 @@ Shop.Bundles = {
 	{
 		Key = "LegendBundle",
 		Name = "Legend Bundle",
-		Id = 0,
+		Id = 2060944264,
 		Robux = 399,
 		Bonks = 1500,
 		Skins = { "gold", "galaxy" },
