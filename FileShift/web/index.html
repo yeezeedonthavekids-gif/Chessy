@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FileShift</title>
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<style>
+/* Layout: one working column (drop zone, queue, preview) beside a narrow settings + formats rail; stacks on phones. */
+:root {
+  --bg: #edf1f0;
+  --surface: #ffffff;
+  --sunken: #f5f8f7;
+  --ink: #13221e;
+  --muted: #5a6b66;
+  --line: #d4dedb;
+  --accent: #0b7a5f;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcefe9;
+  --bad: #b42318;
+  --bad-soft: #fde8e6;
+  --k-image: #2f6fd6;
+  --k-data: #8a5a00;
+  --k-doc: #7a3fb8;
+  --k-media: #c2410c;
+  --k-other: #5a6b66;
+  --f-display: Bahnschrift, "Segoe UI Variable Display", "DIN Alternate", system-ui, sans-serif;
+  --f-body: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --r: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1412; --surface: #141e1b; --sunken: #101815; --ink: #e3ebe8; --muted: #93a39e;
+    --line: #26332f; --accent: #3cc79f; --accent-ink: #052019; --accent-soft: #143329;
+    --bad: #ff8a7a; --bad-soft: #3a1714;
+    --k-image: #7fb0ff; --k-data: #e7b75a; --k-doc: #c49af0; --k-media: #ff9a62; --k-other: #93a39e;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 22px 40px; display: grid; gap: 20px; }
+header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 11px; }
+.brand svg { width: 40px; height: 40px; flex: none; }
+.wordmark { font: 700 26px/1 var(--f-display); letter-spacing: -0.02em; }
+.wordmark span { color: var(--accent); }
+.tagline { color: var(--muted); margin: 0; }
+.privacy { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; background: var(--surface); }
+.privacy i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: block; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } .privacy { margin-left: 0; } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.main { display: grid; gap: 16px; min-width: 0; }
+
+.drop { border: 1.5px dashed var(--line); border-radius: var(--r); background: var(--surface); padding: 26px 20px;
+  display: grid; justify-items: center; gap: 6px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop h2 { margin: 0; font: 600 19px/1.25 var(--f-display); text-wrap: balance; }
+.drop p { margin: 0; color: var(--muted); font-size: 13px; }
+.drop .kbd { font-family: var(--f-mono); font-size: 12px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; background: var(--sunken); }
+
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.toolbar .count { font-weight: 600; margin-right: auto; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.ghost:hover:not(:disabled) { color: var(--ink); }
+.btn.sm { padding: 3px 9px; font-size: 13px; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row.sel { background: var(--sunken); }
+.badge { width: 44px; height: 44px; border-radius: 8px; display: grid; place-items: center; font: 600 11px/1 var(--f-mono);
+  letter-spacing: .04em; text-transform: uppercase; color: var(--kc); border: 1.5px solid currentColor; background: var(--surface); overflow: hidden; }
+.badge img { width: 100%; height: 100%; object-fit: cover; }
+.k-image { --kc: var(--k-image); } .k-data { --kc: var(--k-data); } .k-doc { --kc: var(--k-doc); } .k-media { --kc: var(--k-media); } .k-other { --kc: var(--k-other); }
+.info { min-width: 0; }
+.name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 6px; align-items: center; }
+.name b { overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.chip { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: var(--sunken); color: var(--muted); border: 1px solid var(--line); flex: none; }
+.meta { color: var(--muted); font: 12px/1.4 var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meta .ok { color: var(--accent); }
+.meta .err { color: var(--bad); white-space: normal; }
+.to { display: flex; align-items: center; gap: 6px; }
+.to span { color: var(--muted); font-size: 12px; }
+select { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 5px 8px; max-width: 170px; }
+.acts { display: flex; gap: 4px; align-items: center; }
+@media (max-width: 560px) {
+  .row { grid-template-columns: 44px minmax(0, 1fr); }
+  .to, .acts { grid-column: 2; }
+}
+.spin { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: sp .8s linear infinite; display: inline-block; vertical-align: -2px; }
+@keyframes sp { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 3s; } .drop { transition: none; } }
+
+.preview { min-width: 0; }
+.preview header { padding: 12px 14px; border-bottom: 1px solid var(--line); gap: 10px; }
+.preview h3 { margin: 0; font: 600 15px/1.3 var(--f-display); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview .pbody { padding: 14px; overflow: auto; max-height: 460px; }
+.preview pre { margin: 0; font: 12.5px/1.55 var(--f-mono); white-space: pre-wrap; word-break: break-word; }
+.preview img { max-width: 100%; display: block; margin: 0 auto; background: repeating-conic-gradient(var(--sunken) 0 25%, var(--surface) 0 50%) 0 0 / 16px 16px; border-radius: 6px; }
+.preview .empty { color: var(--muted); }
+.preview audio { width: 100%; }
+
+.side { display: grid; gap: 16px; min-width: 0; }
+.side .panel { padding: 14px; display: grid; gap: 12px; }
+.side h3 { margin: 0; font: 600 12px/1 var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.field { display: grid; gap: 5px; }
+.field label { font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; }
+.field label output { font: 12px var(--f-mono); color: var(--muted); font-weight: 400; }
+.field select { max-width: none; width: 100%; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.hint { font-size: 12px; color: var(--muted); margin: 0; }
+.formats { display: grid; gap: 10px; font-size: 13px; }
+.formats div { display: grid; gap: 2px; }
+.formats b { font-weight: 600; color: var(--kc); }
+.formats span { color: var(--muted); font: 12px/1.45 var(--f-mono); }
+
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13.5px; box-shadow: 0 6px 24px rgba(0,0,0,.18); z-index: 20; max-width: calc(100vw - 32px); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M8 1.5h12.5l10 10V24a6.5 6.5 0 0 1-6.5 6.5H8A6.5 6.5 0 0 1 1.5 24V8A6.5 6.5 0 0 1 8 1.5z" fill="var(--accent)"/>
+        <path d="M20.5 1.5V7a4.5 4.5 0 0 0 4.5 4.5h5.5z" fill="var(--accent-soft)"/>
+        <g fill="none" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7.5 15h14M18 11.5l3.5 3.5-3.5 3.5"/>
+          <path d="M24.5 23h-14M14 19.5 10.5 23l3.5 3.5"/>
+        </g>
+      </svg>
+      <div class="wordmark">File<span>Shift</span></div>
+    </div>
+    <p class="tagline">Convert images, spreadsheets, documents, PDFs and audio.</p>
+    <div class="privacy" title="All conversions run on this computer"><i></i>Offline · files never leave this PC</div>
+  </header>
+
+  <div class="grid">
+    <div class="main">
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Add files">
+        <h2>Drop files here, or click to choose</h2>
+        <p>You can also paste an image or text with <span class="kbd">Ctrl</span>+<span class="kbd">V</span>. Add as many files as you like.</p>
+        <input type="file" id="pick" multiple hidden>
+      </div>
+
+      <section class="panel" id="queue">
+        <div class="toolbar">
+          <span class="count" id="count">No files</span>
+          <button class="btn ghost sm" id="clear">Clear</button>
+          <button class="btn sm" id="mergePdf" hidden>Merge images into one PDF</button>
+          <button class="btn sm" id="saveAll" disabled>Save all (.zip)</button>
+          <button class="btn primary sm" id="convertAll" disabled>Convert all</button>
+        </div>
+        <ul class="list" id="list"></ul>
+      </section>
+
+      <section class="panel preview" id="preview">
+        <header>
+          <h3 id="pvTitle">Preview</h3>
+          <span style="margin-left:auto"></span>
+          <button class="btn sm" id="pvCopy" hidden>Copy text</button>
+          <button class="btn sm primary" id="pvSave" hidden>Save</button>
+        </header>
+        <div class="pbody" id="pvBody"><p class="empty">Convert a file to see the result here.</p></div>
+      </section>
+    </div>
+
+    <aside class="side">
+      <section class="panel">
+        <h3>Settings</h3>
+        <div class="field">
+          <label for="quality">Image quality <output id="qOut">85%</output></label>
+          <input type="range" id="quality" min="40" max="100" step="5" value="85">
+          <p class="hint">Applies to JPG and WEBP. Lower means smaller files.</p>
+        </div>
+        <div class="field">
+          <label for="maxDim">Resize images</label>
+          <select id="maxDim">
+            <option value="0">Keep original size</option>
+            <option value="3840">Fit within 3840 px</option>
+            <option value="1920">Fit within 1920 px</option>
+            <option value="1280">Fit within 1280 px</option>
+            <option value="800">Fit within 800 px</option>
+            <option value="512">Fit within 512 px</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="page">PDF page size</label>
+          <select id="page">
+            <option value="a4">A4 (210 × 297 mm)</option>
+            <option value="letter">US Letter (8.5 × 11 in)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="pdfScale">PDF to image resolution</label>
+          <select id="pdfScale">
+            <option value="1">72 dpi (screen)</option>
+            <option value="2" selected>144 dpi (sharp)</option>
+            <option value="4.1667">300 dpi (print)</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3>What converts to what</h3>
+        <div class="formats">
+          <div class="k-image"><b>Images</b><span>PNG JPG WEBP GIF BMP ICO SVG AVIF → PNG JPG WEBP BMP ICO PDF</span></div>
+          <div class="k-data"><b>Data &amp; spreadsheets</b><span>CSV TSV JSON JSONL YAML XML XLSX XLS ODS → CSV TSV JSON YAML XML XLSX Markdown HTML</span></div>
+          <div class="k-doc"><b>Documents</b><span>Markdown → HTML PDF TXT<br>HTML → Markdown TXT PDF<br>TXT and code → PDF HTML Markdown</span></div>
+          <div class="k-doc"><b>PDF</b><span>PDF → TXT, PNG or JPG per page</span></div>
+          <div class="k-media"><b>Audio &amp; video</b><span>MP3 M4A OGG FLAC AAC OPUS MP4 WEBM → WAV</span></div>
+          <div class="k-other"><b>Anything</b><span>Any file → Base64 or data URI</span></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+
+/* ---------- libraries (bundled, loaded on first use) ---------- */
+const LIBS = {
+  jszip: { src: ['vendor/jszip.min.js'], get: () => window.JSZip },
+  xlsx: { src: ['vendor/xlsx.full.min.js'], get: () => window.XLSX },
+  yaml: { src: ['vendor/js-yaml.min.js'], get: () => window.jsyaml },
+  marked: { src: ['vendor/marked.min.js'], get: () => window.marked },
+  turndown: { src: ['vendor/turndown.js'], get: () => window.TurndownService },
+  jspdf: { src: ['vendor/jspdf.umd.min.js'], get: () => window.jspdf },
+  // Loading the worker as a plain script lets pdf.js run it on the main thread.
+  pdfjs: { src: ['vendor/pdf.worker.min.js', 'vendor/pdf.min.js'], get: () => window.pdfjsLib },
+};
+const libCache = {};
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res;
+    s.onerror = () => rej(new Error('Could not load ' + src));
+    document.head.appendChild(s);
+  });
+}
+function lib(name) {
+  if (!libCache[name]) {
+    const l = LIBS[name];
+    libCache[name] = l.src.reduce((p, s) => p.then(() => loadScript(s)), Promise.resolve()).then(() => l.get());
+  }
+  return libCache[name];
+}
+
+/* ---------- formats ---------- */
+const EXT = {
+  image: 'png jpg jpeg webp gif bmp ico avif svg jfif',
+  data: 'json jsonl ndjson csv tsv yaml yml xml xlsx xls ods',
+  md: 'md markdown',
+  html: 'html htm',
+  text: 'txt log ini cfg conf toml js mjs ts tsx jsx css scss py rb go rs java kt c h cpp hpp cs php sh bat ps1 sql lua swift r',
+  pdf: 'pdf',
+  media: 'mp3 wav ogg oga m4a aac flac opus weba mp4 m4v webm mov mkv',
+};
+const KIND_OF = {};
+for (const [k, list] of Object.entries(EXT)) for (const e of list.split(' ')) KIND_OF[e] = k;
+const CODE_EXT = new Set(EXT.text.split(' ').filter(e => !['txt', 'log'].includes(e)));
+
+const TARGETS = {
+  image: ['png', 'jpg', 'webp', 'bmp', 'ico', 'pdf', 'b64', 'datauri'],
+  data: ['json', 'csv', 'tsv', 'yaml', 'xml', 'xlsx', 'md', 'html', 'b64'],
+  md: ['html', 'pdf', 'txt', 'b64'],
+  html: ['md', 'txt', 'pdf', 'b64'],
+  text: ['pdf', 'html', 'md', 'b64'],
+  pdf: ['txt', 'png', 'jpg', 'b64'],
+  media: ['wav', 'b64'],
+  other: ['b64', 'datauri'],
+};
+const LABEL = { png: 'PNG', jpg: 'JPG', webp: 'WEBP', bmp: 'BMP', ico: 'ICO (icon)', pdf: 'PDF', json: 'JSON', csv: 'CSV', tsv: 'TSV',
+  yaml: 'YAML', xml: 'XML', xlsx: 'Excel (XLSX)', md: 'Markdown', html: 'HTML', txt: 'Plain text', wav: 'WAV audio',
+  b64: 'Base64 text', datauri: 'Data URI' };
+const DATA_LABEL = { md: 'Markdown table', html: 'HTML table' };
+const OUT_EXT = { b64: 'txt', datauri: 'txt' };
+const MIME = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', bmp: 'image/bmp', ico: 'image/x-icon', pdf: 'application/pdf',
+  json: 'application/json', csv: 'text/csv', tsv: 'text/tab-separated-values', yaml: 'application/yaml', xml: 'application/xml',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', md: 'text/markdown', html: 'text/html',
+  txt: 'text/plain', wav: 'audio/wav', zip: 'application/zip' };
+const TEXT_OUT = new Set(['json', 'csv', 'tsv', 'yaml', 'xml', 'md', 'html', 'txt', 'b64', 'datauri']);
+
+function extOf(name) { const m = /\.([^.]+)$/.exec(name); return m ? m[1].toLowerCase() : ''; }
+function baseOf(name) { return name.replace(/\.[^.]+$/, '') || 'file'; }
+function kindOf(file) {
+  const k = KIND_OF[extOf(file.name)];
+  if (k) return k;
+  const t = file.type || '';
+  if (t.startsWith('image/')) return 'image';
+  if (t.startsWith('audio/') || t.startsWith('video/')) return 'media';
+  if (t.startsWith('text/')) return 'text';
+  return 'other';
+}
+const BADGE_CLASS = { image: 'k-image', data: 'k-data', md: 'k-doc', html: 'k-doc', text: 'k-doc', pdf: 'k-doc', media: 'k-media', other: 'k-other' };
+function defaultTarget(kind, ext) {
+  const d = { image: ext === 'png' ? 'webp' : 'png', data: ext === 'json' ? 'csv' : 'json', md: 'html', html: 'md', text: 'pdf', pdf: 'txt', media: 'wav', other: 'b64' }[kind];
+  if (kind === 'data' && ['xlsx', 'xls', 'ods'].includes(ext)) return 'csv';
+  return d;
+}
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB';
+  return (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + ' MB';
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function textBlob(s, ext) { return new Blob([s], { type: (MIME[ext] || 'text/plain') + ';charset=utf-8' }); }
+
+/* ---------- settings ---------- */
+const SETTINGS_KEY = 'fileshift.settings';
+function readSettings() {
+  return { quality: +$('#quality').value / 100, maxDim: +$('#maxDim').value, page: $('#page').value, pdfScale: +$('#pdfScale').value };
+}
+try {
+  const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+  if (s) for (const id of ['quality', 'maxDim', 'page', 'pdfScale']) if (s[id] != null) $('#' + id).value = s[id];
+} catch (e) {}
+function saveSettings() {
+  $('#qOut').textContent = $('#quality').value + '%';
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ quality: $('#quality').value, maxDim: $('#maxDim').value, page: $('#page').value, pdfScale: $('#pdfScale').value })); } catch (e) {}
+}
+for (const id of ['quality', 'maxDim', 'page', 'pdfScale']) $('#' + id).addEventListener('input', saveSettings);
+$('#qOut').textContent = $('#quality').value + '%';
+
+/* ---------- tabular data ---------- */
+function detectDelim(text) {
+  const line = text.split(/\r?\n/).find(l => l.trim()) || '';
+  let best = ',', bestN = 0;
+  for (const d of [',', '\t', ';', '|']) {
+    let n = 0, q = false;
+    for (const c of line) { if (c === '"') q = !q; else if (c === d && !q) n++; }
+    if (n > bestN) { best = d; bestN = n; }
+  }
+  return best;
+}
+function parseDelimited(text, delim) {
+  text = text.replace(/^﻿/, '');
+  delim = delim || detectDelim(text);
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; }
+      else f += c;
+    } else if (c === '"' && f === '') q = true;
+    else if (c === delim) { row.push(f); f = ''; }
+    else if (c === '\n') { row.push(f); rows.push(row); row = []; f = ''; }
+    else if (c !== '\r') f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  const clean = rows.filter(r => r.length > 1 || r[0].trim() !== '');
+  if (!clean.length) return [];
+  const seen = {};
+  const head = clean[0].map((h, i) => {
+    let k = h.trim() || 'column_' + (i + 1);
+    if (seen[k]) k += '_' + (++seen[k]); else seen[k] = 1;
+    return k;
+  });
+  return clean.slice(1).map(r => Object.fromEntries(head.map((h, i) => [h, infer(r[i] ?? '')])));
+}
+function infer(v) {
+  if (typeof v !== 'string') return v;
+  const t = v.trim();
+  if (/^-?(0|[1-9]\d{0,14})(\.\d+)?([eE][+-]?\d+)?$/.test(t)) return Number(t);
+  if (t === 'true') return true;
+  if (t === 'false') return false;
+  return v;
+}
+function flatten(obj, pre = '', out = {}) {
+  for (const [k, v] of Object.entries(obj)) {
+    const key = pre ? pre + '.' + k : k;
+    if (v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date)) flatten(v, key, out);
+    else if (Array.isArray(v)) out[key] = v.every(x => x === null || typeof x !== 'object') ? v.join('; ') : JSON.stringify(v);
+    else out[key] = v;
+  }
+  return out;
+}
+function findRows(v) {
+  if (Array.isArray(v)) return v;
+  if (v && typeof v === 'object') {
+    let best = null;
+    const walk = (o, depth) => {
+      if (depth > 4 || !o || typeof o !== 'object') return;
+      for (const val of Object.values(o)) {
+        if (Array.isArray(val) && val.some(x => x && typeof x === 'object')) { if (!best || val.length > best.length) best = val; }
+        else walk(val, depth + 1);
+      }
+    };
+    walk(v, 0);
+    return best || [v];
+  }
+  return [{ value: v }];
+}
+function toRows(value) {
+  return findRows(value).map(r => (r && typeof r === 'object' && !Array.isArray(r)) ? flatten(r) : { value: Array.isArray(r) ? JSON.stringify(r) : r });
+}
+function headersOf(rows) {
+  const h = []; const s = new Set();
+  for (const r of rows) for (const k of Object.keys(r)) if (!s.has(k)) { s.add(k); h.push(k); }
+  return h;
+}
+function toDelimited(rows, d) {
+  const h = headersOf(rows);
+  const cell = v => {
+    v = v == null ? '' : String(v);
+    return (v.includes(d) || /["\r\n]/.test(v) || /^\s|\s$/.test(v)) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  };
+  return [h.map(cell).join(d), ...rows.map(r => h.map(k => cell(r[k])).join(d))].join('\r\n') + '\r\n';
+}
+function toMdTable(rows) {
+  const h = headersOf(rows);
+  const c = v => String(v ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>');
+  return ['| ' + h.map(c).join(' | ') + ' |', '| ' + h.map(() => '---').join(' | ') + ' |', ...rows.map(r => '| ' + h.map(k => c(r[k])).join(' | ') + ' |')].join('\n') + '\n';
+}
+function htmlDoc(title, body, extraCss = '') {
+  return `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>${esc(title)}</title>\n<style>\nbody{font:16px/1.6 system-ui,sans-serif;max-width:860px;margin:40px auto;padding:0 20px;color:#1b2420}\npre,code{font-family:ui-monospace,Consolas,monospace;font-size:.9em}pre{background:#f3f5f4;padding:12px 14px;border-radius:6px;overflow:auto}\nimg{max-width:100%}table{border-collapse:collapse}th,td{border:1px solid #d4dedb;padding:6px 10px;text-align:left}th{background:#f3f5f4}\n${extraCss}</style>\n</head>\n<body>\n${body}\n</body>\n</html>\n`;
+}
+function toHtmlTable(rows, title) {
+  const h = headersOf(rows);
+  const body = `<h1>${esc(title)}</h1>\n<table>\n<thead><tr>${h.map(k => `<th>${esc(k)}</th>`).join('')}</tr></thead>\n<tbody>\n${rows.map(r => '<tr>' + h.map(k => `<td>${esc(r[k] ?? '')}</td>`).join('') + '</tr>').join('\n')}\n</tbody>\n</table>`;
+  return htmlDoc(title, body, 'td{font-variant-numeric:tabular-nums}');
+}
+function safeTag(t) {
+  t = String(t).replace(/[^A-Za-z0-9_.-]/g, '_');
+  return /^[A-Za-z_]/.test(t) ? t : '_' + t;
+}
+function toXml(v, tag, ind = '') {
+  tag = safeTag(tag);
+  if (Array.isArray(v)) return v.map(x => toXml(x, tag, ind)).join('');
+  if (v && typeof v === 'object') {
+    let attrs = '', inner = '', text = null;
+    for (const [k, val] of Object.entries(v)) {
+      if (k.startsWith('@')) attrs += ` ${safeTag(k.slice(1))}="${esc(val)}"`;
+      else if (k === '#text') text = val;
+      else inner += toXml(val, k, ind + '  ');
+    }
+    if (!inner) return `${ind}<${tag}${attrs}>${text != null ? esc(text) : ''}</${tag}>\n`;
+    return `${ind}<${tag}${attrs}>\n${text != null ? ind + '  ' + esc(text) + '\n' : ''}${inner}${ind}</${tag}>\n`;
+  }
+  return `${ind}<${tag}>${esc(v ?? '')}</${tag}>\n`;
+}
+function objToXml(value) {
+  let body;
+  const keys = value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value) : [];
+  if (keys.length === 1 && !Array.isArray(value[keys[0]])) body = toXml(value[keys[0]], keys[0]);
+  else if (Array.isArray(value)) body = '<rows>\n' + value.map(r => toXml(r, 'row', '  ')).join('') + '</rows>\n';
+  else body = toXml(value, 'root');
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + body;
+}
+function xmlToObj(node) {
+  const obj = {};
+  for (const a of node.attributes) obj['@' + a.name] = infer(a.value);
+  const kids = [...node.children];
+  const text = [...node.childNodes].filter(n => n.nodeType === 3 || n.nodeType === 4).map(n => n.nodeValue).join('').trim();
+  if (!kids.length && !node.attributes.length) return infer(text);
+  for (const k of kids) {
+    const v = xmlToObj(k), t = k.tagName;
+    if (t in obj) { if (!Array.isArray(obj[t])) obj[t] = [obj[t]]; obj[t].push(v); }
+    else obj[t] = v;
+  }
+  if (text) obj['#text'] = text;
+  return obj;
+}
+async function readData(file, ext) {
+  if (['xlsx', 'xls', 'ods'].includes(ext)) {
+    const XLSX = await lib('xlsx');
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+    const sheets = wb.SheetNames.map(n => [n, XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: '' })]);
+    const value = sheets.length === 1 ? sheets[0][1] : Object.fromEntries(sheets);
+    return { value, rows: sheets[0][1].map(r => flatten(r)), note: sheets.length > 1 ? `${sheets.length} sheets; tables use “${sheets[0][0]}”` : '' };
+  }
+  const text = await file.text();
+  let value;
+  if (ext === 'json') value = JSON.parse(text.replace(/^﻿/, ''));
+  else if (ext === 'jsonl' || ext === 'ndjson') value = text.split(/\r?\n/).filter(l => l.trim()).map(l => JSON.parse(l));
+  else if (ext === 'csv' || ext === 'tsv') value = parseDelimited(text, ext === 'tsv' ? '\t' : null);
+  else if (ext === 'yaml' || ext === 'yml') value = (await lib('yaml')).load(text);
+  else if (ext === 'xml') {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    const err = doc.querySelector('parsererror');
+    if (err) throw new Error('This XML is not well-formed: ' + err.textContent.split('\n')[0]);
+    value = { [doc.documentElement.tagName]: xmlToObj(doc.documentElement) };
+  }
+  return { value, rows: toRows(value) };
+}
+async function convertData(job, to) {
+  const { value, rows, note } = await readData(job.file, job.ext);
+  const name = baseOf(job.file.name);
+  let out;
+  switch (to) {
+    case 'json': out = textBlob(JSON.stringify(value, (k, v) => v, 2) + '\n', 'json'); break;
+    case 'yaml': out = textBlob((await lib('yaml')).dump(value, { lineWidth: 120, noRefs: true }), 'yaml'); break;
+    case 'csv': out = textBlob('﻿' + toDelimited(rows, ','), 'csv'); break;
+    case 'tsv': out = textBlob(toDelimited(rows, '\t'), 'tsv'); break;
+    case 'xml': out = textBlob(objToXml(value), 'xml'); break;
+    case 'md': out = textBlob(toMdTable(rows), 'md'); break;
+    case 'html': out = textBlob(toHtmlTable(rows, name), 'html'); break;
+    case 'xlsx': {
+      const XLSX = await lib('xlsx');
+      const wb = XLSX.utils.book_new();
+      const isMulti = ['xlsx', 'xls', 'ods'].includes(job.ext) && value && !Array.isArray(value);
+      if (isMulti) for (const [n, r] of Object.entries(value)) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(r.map(x => flatten(x))), n.slice(0, 31));
+      else XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Sheet1');
+      out = new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: MIME.xlsx });
+      break;
+    }
+  }
+  return { outputs: [{ name: name + '.' + to, blob: out }], note: note || `${rows.length} row${rows.length === 1 ? '' : 's'}` };
+}
+
+/* ---------- images ---------- */
+function loadImage(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => res({ img, url });
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('This image format cannot be read on this computer.')); };
+    img.src = url;
+  });
+}
+async function imageCanvas(file, { maxDim = 0, fill = null, cap = 0 } = {}) {
+  const { img, url } = await loadImage(file);
+  let w = img.naturalWidth || 1024, h = img.naturalHeight || 1024;
+  if (!img.naturalWidth && extOf(file.name) === 'svg') {
+    const m = /viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/.exec(await file.text());
+    if (m) { const r = +m[1] / +m[2]; w = 1024; h = Math.round(1024 / r); }
+  }
+  const lim = Math.min(maxDim || Infinity, cap || Infinity);
+  if (lim < Math.max(w, h)) { const s = lim / Math.max(w, h); w = Math.max(1, Math.round(w * s)); h = Math.max(1, Math.round(h * s)); }
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  if (fill) { ctx.fillStyle = fill; ctx.fillRect(0, 0, w, h); }
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, w, h);
+  URL.revokeObjectURL(url);
+  return c;
+}
+function canvasBlob(c, type, q) {
+  return new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('Could not encode the image.')), type, q));
+}
+function canvasToBmp(c) {
+  const w = c.width, h = c.height, d = c.getContext('2d').getImageData(0, 0, w, h).data;
+  const row = Math.ceil(w * 3 / 4) * 4, size = 54 + row * h;
+  const buf = new ArrayBuffer(size), v = new DataView(buf), u = new Uint8Array(buf);
+  v.setUint16(0, 0x4d42, true); v.setUint32(2, size, true); v.setUint32(10, 54, true);
+  v.setUint32(14, 40, true); v.setInt32(18, w, true); v.setInt32(22, h, true); v.setUint16(26, 1, true); v.setUint16(28, 24, true);
+  v.setUint32(34, row * h, true); v.setInt32(38, 2835, true); v.setInt32(42, 2835, true);
+  for (let y = 0; y < h; y++) {
+    const o = 54 + (h - 1 - y) * row;
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, a = d[i + 3] / 255, p = o + x * 3;
+      u[p] = d[i + 2] * a + 255 * (1 - a); u[p + 1] = d[i + 1] * a + 255 * (1 - a); u[p + 2] = d[i] * a + 255 * (1 - a);
+    }
+  }
+  return new Blob([buf], { type: MIME.bmp });
+}
+async function canvasToIco(c) {
+  const sizes = [256, 64, 48, 32, 16].filter(s => s <= Math.max(c.width, c.height) || s === 16);
+  const imgs = [];
+  for (const s of sizes) {
+    const k = document.createElement('canvas'); k.width = k.height = s;
+    const ctx = k.getContext('2d'); ctx.imageSmoothingQuality = 'high';
+    const r = Math.min(s / c.width, s / c.height), w = c.width * r, h = c.height * r;
+    ctx.drawImage(c, (s - w) / 2, (s - h) / 2, w, h);
+    imgs.push({ s, data: new Uint8Array(await (await canvasBlob(k, 'image/png')).arrayBuffer()) });
+  }
+  const head = 6 + 16 * imgs.length, total = head + imgs.reduce((n, i) => n + i.data.length, 0);
+  const u = new Uint8Array(total), v = new DataView(u.buffer);
+  v.setUint16(2, 1, true); v.setUint16(4, imgs.length, true);
+  let off = head;
+  imgs.forEach((im, n) => {
+    const e = 6 + n * 16;
+    u[e] = im.s >= 256 ? 0 : im.s; u[e + 1] = im.s >= 256 ? 0 : im.s;
+    v.setUint16(e + 4, 1, true); v.setUint16(e + 6, 32, true);
+    v.setUint32(e + 8, im.data.length, true); v.setUint32(e + 12, off, true);
+    u.set(im.data, off); off += im.data.length;
+  });
+  return new Blob([u], { type: MIME.ico });
+}
+async function imagesToPdf(files, settings, title) {
+  const { jsPDF } = await lib('jspdf');
+  let doc = null;
+  for (const f of files) {
+    const c = await imageCanvas(f, { maxDim: settings.maxDim || 3000, fill: '#ffffff' });
+    const land = c.width > c.height;
+    if (!doc) doc = new jsPDF({ unit: 'pt', format: settings.page, orientation: land ? 'l' : 'p' });
+    else doc.addPage(settings.page, land ? 'l' : 'p');
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), m = 28;
+    const r = Math.min((W - 2 * m) / c.width, (H - 2 * m) / c.height, 1);
+    const w = c.width * r, h = c.height * r;
+    doc.addImage(c.toDataURL('image/jpeg', Math.max(settings.quality, 0.9)), 'JPEG', (W - w) / 2, (H - h) / 2, w, h);
+  }
+  doc.setProperties({ title, creator: 'FileShift' });
+  return doc.output('blob');
+}
+async function convertImage(job, to, settings) {
+  const name = baseOf(job.file.name);
+  if (to === 'pdf') return { outputs: [{ name: name + '.pdf', blob: await imagesToPdf([job.file], settings, name) }] };
+  const c = await imageCanvas(job.file, { maxDim: settings.maxDim, fill: (to === 'jpg' || to === 'bmp') ? '#ffffff' : null });
+  let blob;
+  if (to === 'bmp') blob = canvasToBmp(c);
+  else if (to === 'ico') blob = await canvasToIco(c);
+  else {
+    blob = await canvasBlob(c, MIME[to], settings.quality);
+    if (blob.type !== MIME[to]) throw new Error(`This browser cannot write ${LABEL[to]} files.`);
+  }
+  return { outputs: [{ name: name + '.' + to, blob }], note: `${c.width}×${c.height}px` };
+}
+
+/* ---------- documents ---------- */
+function asciiSafe(s) {
+  return s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...')
+    .replace(/ /g, ' ').replace(/[^\n\t\x20-\x7E¡-ÿ•]/g, '?');
+}
+function inlinePlain(s) {
+  const t = document.createElement('textarea');
+  t.innerHTML = String(s)
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)[^)]*\)/g, (m, a, b) => a === b ? a : `${a} (${b})`)
+    .replace(/(\*\*|__)(.+?)\1/g, '$2').replace(/(\*|_)(.+?)\1/g, '$2').replace(/~~(.+?)~~/g, '$1').replace(/`([^`]+)`/g, '$1')
+    .replace(/<[^>]+>/g, '');
+  return t.value;
+}
+async function markdownToPdf(md, settings, title, opts = {}) {
+  const { jsPDF } = await lib('jspdf');
+  const marked = await lib('marked');
+  const doc = new jsPDF({ unit: 'pt', format: settings.page });
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 60;
+  let y = M;
+  const ensure = h => { if (y + h > H - M) { doc.addPage(); y = M; } };
+  const para = (text, { size = 11, style = 'normal', font = 'helvetica', indent = 0, after = 9, lead = 1.45, color = [27, 36, 32] } = {}) => {
+    doc.setFont(font, style); doc.setFontSize(size); doc.setTextColor(...color);
+    const lines = [];
+    for (const raw of asciiSafe(text).split('\n')) lines.push(...(raw === '' ? [''] : doc.splitTextToSize(raw.replace(/\t/g, '    '), W - 2 * M - indent)));
+    for (const ln of lines) { ensure(size * lead); doc.text(ln, M + indent, y + size); y += size * lead; }
+    y += after;
+  };
+  if (opts.plain) { para(md, { font: opts.mono ? 'courier' : 'helvetica', size: opts.mono ? 9.5 : 11, lead: opts.mono ? 1.4 : 1.5, after: 0 }); }
+  else {
+    const walk = (tokens, indent = 0) => {
+      for (const t of tokens) {
+        switch (t.type) {
+          case 'heading': y += t.depth <= 2 ? 8 : 4; ensure(40); para(inlinePlain(t.text), { size: [0, 22, 17, 14, 12, 11, 11][t.depth], style: 'bold', after: 6, lead: 1.25 }); break;
+          case 'paragraph': case 'text': para(inlinePlain(t.text), { indent }); break;
+          case 'list': t.items.forEach((it, i) => {
+            const mark = t.ordered ? ((+t.start || 1) + i) + '. ' : '• ';
+            const first = it.tokens.find(x => x.type === 'text' || x.type === 'paragraph');
+            para(mark + (it.task ? (it.checked ? '[x] ' : '[ ] ') : '') + inlinePlain(first ? first.text : it.text), { indent: indent + 14, after: 3 });
+            const rest = it.tokens.filter(x => x !== first && x.type !== 'space');
+            if (rest.length) walk(rest, indent + 28);
+          }); y += 6; break;
+          case 'code': para(t.text, { font: 'courier', size: 9.5, lead: 1.4, indent: indent + 10, color: [40, 52, 48] }); break;
+          case 'blockquote': para(inlinePlain(t.text), { style: 'italic', indent: indent + 16, color: [80, 96, 90] }); break;
+          case 'hr': ensure(16); doc.setDrawColor(200, 210, 206); doc.line(M, y + 6, W - M, y + 6); y += 18; break;
+          case 'table': {
+            const all = [t.header.map(c => inlinePlain(c.text)), ...t.rows.map(r => r.map(c => inlinePlain(c.text)))];
+            const wid = all[0].map((_, i) => Math.min(28, Math.max(...all.map(r => (r[i] || '').length))));
+            const fmt = r => r.map((c, i) => (c || '').slice(0, 28).padEnd(wid[i])).join('  ');
+            para([fmt(all[0]), wid.map(n => '-'.repeat(n)).join('  '), ...all.slice(1).map(fmt)].join('\n'), { font: 'courier', size: 8.5, lead: 1.35 });
+            break;
+          }
+          case 'html': { const s = inlinePlain(t.text).trim(); if (s) para(s, { indent }); break; }
+        }
+      }
+    };
+    walk(marked.lexer(md));
+  }
+  const n = doc.getNumberOfPages();
+  for (let p = 1; p <= n; p++) {
+    doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(130, 140, 136);
+    doc.text(`${p} / ${n}`, W - M, H - 30, { align: 'right' });
+  }
+  doc.setProperties({ title, creator: 'FileShift' });
+  return doc.output('blob');
+}
+function htmlToText(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('script,style,noscript,template').forEach(e => e.remove());
+  doc.querySelectorAll('br').forEach(e => e.replaceWith('\n'));
+  doc.querySelectorAll('p,div,section,article,header,footer,li,tr,h1,h2,h3,h4,h5,h6,pre,blockquote,table,ul,ol').forEach(e => { e.prepend('\n'); e.append('\n'); });
+  doc.querySelectorAll('td,th').forEach(e => e.append('\t'));
+  doc.querySelectorAll('li').forEach(e => e.prepend('- '));
+  return (doc.body ? doc.body.textContent : '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+}
+async function htmlToMd(html) {
+  const T = await lib('turndown');
+  const td = new T({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
+  td.remove(['script', 'style', 'noscript']);
+  return td.turndown(html).trim() + '\n';
+}
+async function convertDoc(job, to, settings) {
+  const name = baseOf(job.file.name), text = await job.file.text();
+  let out;
+  if (job.kind === 'md') {
+    if (to === 'html') out = textBlob(htmlDoc(name, (await lib('marked')).parse(text, { gfm: true })), 'html');
+    else if (to === 'txt') out = textBlob(htmlToText((await lib('marked')).parse(text)), 'txt');
+    else out = await markdownToPdf(text, settings, name);
+  } else if (job.kind === 'html') {
+    if (to === 'md') out = textBlob(await htmlToMd(text), 'md');
+    else if (to === 'txt') out = textBlob(htmlToText(text), 'txt');
+    else out = await markdownToPdf(await htmlToMd(text), settings, name);
+  } else {
+    const code = CODE_EXT.has(job.ext);
+    if (to === 'pdf') out = await markdownToPdf(text, settings, job.file.name, { plain: true, mono: code });
+    else if (to === 'html') out = textBlob(htmlDoc(job.file.name, `<pre>${esc(text)}</pre>`), 'html');
+    else out = textBlob(code ? '```' + job.ext + '\n' + text.replace(/\n?$/, '\n') + '```\n' : text, 'md');
+  }
+  return { outputs: [{ name: name + '.' + to, blob: out }] };
+}
+
+/* ---------- PDF ---------- */
+async function openPdf(file) {
+  const pdfjs = await lib('pdfjs');
+  return pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false, disableFontFace: true, useSystemFonts: false }).promise;
+}
+async function convertPdf(job, to, settings) {
+  const pdf = await openPdf(job.file), name = baseOf(job.file.name), n = pdf.numPages;
+  if (to === 'txt') {
+    const pages = [];
+    for (let p = 1; p <= n; p++) {
+      const tc = await (await pdf.getPage(p)).getTextContent();
+      pages.push(tc.items.map(i => i.str + (i.hasEOL ? '\n' : '')).join('').replace(/[ \t]+\n/g, '\n').trim());
+    }
+    const txt = pages.join('\n\n\f\n\n') + '\n';
+    return { outputs: [{ name: name + '.txt', blob: textBlob(txt, 'txt') }], note: `${n} page${n === 1 ? '' : 's'}` + (txt.trim() ? '' : ', no text layer (scanned?)') };
+  }
+  const outputs = [];
+  for (let p = 1; p <= n; p++) {
+    const page = await pdf.getPage(p), vp = page.getViewport({ scale: settings.pdfScale });
+    const c = document.createElement('canvas'); c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    const pad = String(n).length;
+    outputs.push({ name: n === 1 ? `${name}.${to}` : `${name}-page-${String(p).padStart(pad, '0')}.${to}`, blob: await canvasBlob(c, MIME[to], settings.quality) });
+  }
+  return { outputs, note: `${n} page${n === 1 ? '' : 's'}` };
+}
+
+/* ---------- audio ---------- */
+function encodeWav(ab) {
+  const ch = ab.numberOfChannels, sr = ab.sampleRate, len = ab.length, bytes = len * ch * 2;
+  const buf = new ArrayBuffer(44 + bytes), v = new DataView(buf);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + bytes, true); str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true); v.setUint32(24, sr, true);
+  v.setUint32(28, sr * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, bytes, true);
+  const data = []; for (let c = 0; c < ch; c++) data.push(ab.getChannelData(c));
+  let o = 44;
+  for (let i = 0; i < len; i++) for (let c = 0; c < ch; c++) { const s = Math.max(-1, Math.min(1, data[c][i])); v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true); o += 2; }
+  return new Blob([buf], { type: MIME.wav });
+}
+async function convertMedia(job) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  const ctx = new Ctx();
+  let ab;
+  try { ab = await ctx.decodeAudioData(await job.file.arrayBuffer()); }
+  catch (e) { throw new Error('No playable audio track was found, or this codec is not supported here.'); }
+  finally { ctx.close && ctx.close(); }
+  const secs = ab.duration, mm = Math.floor(secs / 60), ss = Math.round(secs % 60);
+  return { outputs: [{ name: baseOf(job.file.name) + '.wav', blob: encodeWav(ab) }], note: `${mm}:${String(ss).padStart(2, '0')}, ${ab.numberOfChannels} ch, ${ab.sampleRate / 1000} kHz` };
+}
+
+/* ---------- base64 ---------- */
+function readDataUrl(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
+}
+async function convertB64(job, to) {
+  let url = await readDataUrl(job.file);
+  if (url.startsWith('data:;')) url = 'data:application/octet-stream;' + url.slice(6);
+  const out = to === 'b64' ? url.slice(url.indexOf(',') + 1) : url;
+  return { outputs: [{ name: job.file.name + (to === 'b64' ? '.base64.txt' : '.datauri.txt'), blob: textBlob(out, 'txt') }] };
+}
+
+async function convert(job, to) {
+  const settings = readSettings();
+  if (to === 'b64' || to === 'datauri') return convertB64(job, to);
+  switch (job.kind) {
+    case 'image': return convertImage(job, to, settings);
+    case 'data': return convertData(job, to);
+    case 'md': case 'html': case 'text': return convertDoc(job, to, settings);
+    case 'pdf': return convertPdf(job, to, settings);
+    case 'media': return convertMedia(job);
+  }
+  throw new Error('No converter for this file.');
+}
+
+/* ---------- queue ---------- */
+let jobs = [], seq = 0, selected = null;
+function addFiles(files, example = false) {
+  for (const file of files) {
+    const kind = kindOf(file), ext = extOf(file.name);
+    const job = { id: ++seq, file, kind, ext, to: defaultTarget(kind, ext), status: 'ready', result: null, error: '', example, thumb: null };
+    if (kind === 'image') job.thumb = URL.createObjectURL(file);
+    jobs.push(job);
+  }
+  render();
+}
+function targetOptions(job) {
+  return TARGETS[job.kind].map(t => `<option value="${t}"${t === job.to ? ' selected' : ''}>${esc((job.kind === 'data' && DATA_LABEL[t]) || LABEL[t])}</option>`).join('');
+}
+function resultMeta(job) {
+  if (job.status === 'working') return '<span class="spin"></span> Converting…';
+  if (job.status === 'error') return `<span class="err">${esc(job.error)}</span>`;
+  const base = `${fmtBytes(job.file.size)} · ${esc(job.file.type || (job.ext ? '.' + job.ext : 'unknown type'))}`;
+  if (job.status !== 'done') return base;
+  const r = job.result, total = r.outputs.reduce((n, o) => n + o.blob.size, 0);
+  const pct = Math.round((total / job.file.size - 1) * 100);
+  const files = r.outputs.length > 1 ? `${r.outputs.length} files, ` : '';
+  return `${fmtBytes(job.file.size)} → <span class="ok">${files}${fmtBytes(total)}${isFinite(pct) && r.outputs.length === 1 ? ` (${pct > 0 ? '+' : ''}${pct}%)` : ''}</span>${r.note ? ' · ' + esc(r.note) : ''}`;
+}
+function render() {
+  const list = $('#list');
+  list.innerHTML = jobs.map(j => `
+    <li class="row${selected === j.id ? ' sel' : ''}" data-id="${j.id}">
+      <div class="badge ${BADGE_CLASS[j.kind]}">${j.thumb ? `<img src="${j.thumb}" alt="">` : esc((j.ext || 'file').slice(0, 4))}</div>
+      <div class="info">
+        <div class="name"><b title="${esc(j.file.name)}">${esc(j.file.name)}</b>${j.example ? '<span class="chip">Example</span>' : ''}</div>
+        <div class="meta">${resultMeta(j)}</div>
+      </div>
+      <label class="to"><span>to</span><select data-act="to" aria-label="Convert ${esc(j.file.name)} to">${targetOptions(j)}</select></label>
+      <div class="acts">
+        ${j.status === 'done'
+          ? `<button class="btn sm" data-act="view">View</button><button class="btn sm primary" data-act="save">Save</button>`
+          : `<button class="btn sm" data-act="go"${j.status === 'working' ? ' disabled' : ''}>Convert</button>`}
+        <button class="btn ghost sm" data-act="rm" aria-label="Remove ${esc(j.file.name)}">✕</button>
+      </div>
+    </li>`).join('');
+  const n = jobs.length, done = jobs.filter(j => j.status === 'done').length;
+  $('#count').textContent = n ? `${n} file${n === 1 ? '' : 's'}${done ? ` · ${done} converted` : ''}` : 'No files yet';
+  $('#queue').hidden = !n;
+  $('#convertAll').disabled = !jobs.some(j => j.status === 'ready' || j.status === 'error');
+  $('#saveAll').disabled = !done;
+  $('#mergePdf').hidden = jobs.filter(j => j.kind === 'image').length < 2;
+}
+async function run(job) {
+  job.status = 'working'; job.error = ''; render();
+  try {
+    job.result = await convert(job, job.to);
+    job.status = 'done';
+    if (selected == null || selected === job.id) { selected = job.id; showPreview(job); }
+  } catch (e) {
+    console.error(e);
+    job.status = 'error';
+    job.error = e && e.message ? e.message : 'Conversion failed.';
+  }
+  render();
+}
+$('#list').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'SELECT') return;
+  const job = jobs.find(j => j.id === +b.closest('.row').dataset.id); if (!job) return;
+  const act = b.dataset.act;
+  if (act === 'go') run(job);
+  else if (act === 'save') saveJob(job);
+  else if (act === 'view') { selected = job.id; showPreview(job); render(); }
+  else if (act === 'rm') {
+    if (job.thumb) URL.revokeObjectURL(job.thumb);
+    jobs = jobs.filter(j => j !== job);
+    if (selected === job.id) { selected = null; clearPreview(); }
+    render();
+  }
+});
+$('#list').addEventListener('change', e => {
+  if (e.target.dataset.act !== 'to') return;
+  const job = jobs.find(j => j.id === +e.target.closest('.row').dataset.id);
+  job.to = e.target.value; job.status = 'ready'; job.result = null;
+  if (selected === job.id) clearPreview();
+  render();
+});
+$('#convertAll').addEventListener('click', async () => {
+  for (const j of jobs.filter(j => j.status === 'ready' || j.status === 'error')) await run(j);
+  toast('Converted ' + jobs.filter(j => j.status === 'done').length + ' files');
+});
+$('#clear').addEventListener('click', () => {
+  jobs.forEach(j => j.thumb && URL.revokeObjectURL(j.thumb));
+  jobs = []; selected = null; clearPreview(); render();
+});
+$('#mergePdf').addEventListener('click', async () => {
+  const imgs = jobs.filter(j => j.kind === 'image');
+  const b = $('#mergePdf'); b.disabled = true; b.textContent = 'Building PDF…';
+  try {
+    const blob = await imagesToPdf(imgs.map(j => j.file), readSettings(), 'Images');
+    download('images.pdf', blob);
+    toast(`Saved images.pdf (${imgs.length} pages, ${fmtBytes(blob.size)})`);
+  } catch (e) { toast(e.message || 'Could not build the PDF.'); }
+  b.disabled = false; b.textContent = 'Merge images into one PDF';
+});
+
+/* ---------- saving ---------- */
+function download(name, blob) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+}
+async function zipOutputs(outputs) {
+  const JSZip = await lib('jszip');
+  const z = new JSZip(), used = new Set();
+  for (const o of outputs) {
+    let n = o.name, i = 2;
+    while (used.has(n)) n = o.name.replace(/(\.[^.]+)?$/, m => ` (${i++})` + m);
+    used.add(n); z.file(n, o.blob);
+  }
+  return z.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+}
+async function saveJob(job) {
+  const outs = job.result.outputs;
+  if (outs.length === 1) download(outs[0].name, outs[0].blob);
+  else download(baseOf(job.file.name) + '-' + job.to + '.zip', await zipOutputs(outs));
+}
+$('#saveAll').addEventListener('click', async () => {
+  const outs = jobs.filter(j => j.status === 'done').flatMap(j => j.result.outputs);
+  if (outs.length === 1) return download(outs[0].name, outs[0].blob);
+  const z = await zipOutputs(outs);
+  download('fileshift-converted.zip', z);
+  toast(`Saved ${outs.length} files in fileshift-converted.zip`);
+});
+
+/* ---------- preview ---------- */
+let pvUrl = null, pvJob = null;
+function clearPreview() {
+  if (pvUrl) URL.revokeObjectURL(pvUrl); pvUrl = null; pvJob = null;
+  $('#pvTitle').textContent = 'Preview';
+  $('#pvBody').innerHTML = '<p class="empty">Convert a file to see the result here.</p>';
+  $('#pvCopy').hidden = $('#pvSave').hidden = true;
+}
+async function showPreview(job) {
+  clearPreview();
+  pvJob = job;
+  const outs = job.result.outputs, o = outs[0], ext = extOf(o.name), body = $('#pvBody');
+  $('#pvTitle').textContent = outs.length > 1 ? `${o.name} (+${outs.length - 1} more)` : o.name;
+  $('#pvSave').hidden = false;
+  if (/^(png|jpg|webp|bmp|ico)$/.test(ext)) {
+    pvUrl = URL.createObjectURL(o.blob);
+    body.innerHTML = `<img src="${pvUrl}" alt="Converted image preview">`;
+  } else if (ext === 'wav') {
+    pvUrl = URL.createObjectURL(o.blob);
+    body.innerHTML = `<audio controls src="${pvUrl}"></audio>`;
+  } else if (ext === 'txt' || TEXT_OUT.has(ext)) {
+    const t = await o.blob.text(), max = 30000;
+    body.innerHTML = `<pre></pre>${t.length > max ? `<p class="empty">Showing the first ${max.toLocaleString()} of ${t.length.toLocaleString()} characters.</p>` : ''}`;
+    body.querySelector('pre').textContent = t.replace(/^﻿/, '').slice(0, max);
+    $('#pvCopy').hidden = false;
+  } else {
+    body.innerHTML = `<p class="empty">${esc(LABEL[ext] || ext.toUpperCase())} file ready, ${fmtBytes(o.blob.size)}${job.result.note ? ' · ' + esc(job.result.note) : ''}. Choose Save to open it in its own app.</p>`;
+  }
+}
+$('#pvSave').addEventListener('click', () => pvJob && saveJob(pvJob));
+$('#pvCopy').addEventListener('click', async () => {
+  const t = (await pvJob.result.outputs[0].blob.text()).replace(/^﻿/, '');
+  try { await navigator.clipboard.writeText(t); toast('Copied to clipboard'); }
+  catch (e) { const r = document.createRange(); r.selectNodeContents($('#pvBody pre')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Text selected. Press Ctrl+C to copy.'); }
+});
+
+/* ---------- input ---------- */
+const drop = $('#drop'), pick = $('#pick');
+drop.addEventListener('click', () => pick.click());
+drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick.click(); } });
+pick.addEventListener('change', () => { addFiles([...pick.files]); pick.value = ''; });
+['dragenter', 'dragover'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); if (t === 'drop' || !e.relatedTarget) drop.classList.remove('over'); }));
+document.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files.length) addFiles([...e.dataTransfer.files]); });
+document.addEventListener('paste', e => {
+  if (e.target.closest && e.target.closest('input,select,textarea')) return;
+  const files = [...(e.clipboardData?.files || [])];
+  if (files.length) { addFiles(files.map((f, i) => new File([f], f.name && f.name !== 'image.png' ? f.name : `pasted-${Date.now()}-${i}.${extOf(f.name) || 'png'}`, { type: f.type }))); return; }
+  const t = e.clipboardData?.getData('text/plain');
+  if (!t) return;
+  let ext = 'txt';
+  try { JSON.parse(t); ext = 'json'; } catch (err) { if (/^<\?xml|^<[a-z][\s\S]*>$/i.test(t.trim())) ext = /^\s*<!doctype html|<html/i.test(t) ? 'html' : 'xml'; else if (t.split('\n')[0].split(',').length > 1 && t.split('\n').length > 1) ext = 'csv'; }
+  addFiles([new File([t], `pasted.${ext}`, { type: MIME[ext] || 'text/plain' })]);
+  toast(`Added pasted text as pasted.${ext}`);
+});
+
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2800); }
+
+/* ---------- examples so the first view shows real work ---------- */
+const SAMPLE_CSV = `order_id,date,customer,item,qty,unit_price,shipped
+10231,2026-10-02,Northwind Traders,USB-C cable 2 m,4,9.99,true
+10232,2026-10-02,Harbor Coffee Co,Thermal receipt paper (50),2,34.50,true
+10233,2026-10-03,"Alvarez, Maria",Desk lamp,1,42.00,false
+10234,2026-10-04,Kiln & Clay Studio,Kiln shelf 16"" round,3,58.25,true
+10235,2026-10-05,Northwind Traders,Label printer,1,129.00,false
+`;
+const SAMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="512" height="512"><rect width="64" height="64" rx="14" fill="#0b7a5f"/><path d="M15 30h28M36 23l7 7-7 7M49 42H21M28 35l-7 7 7 7" fill="none" stroke="#fff" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+addFiles([new File([SAMPLE_CSV], 'example-orders.csv', { type: 'text/csv' }), new File([SAMPLE_SVG], 'example-badge.svg', { type: 'image/svg+xml' })], true);
+run(jobs[0]);
+
+/* ---------- desktop app heartbeat: the .exe exits after the last tab closes ---------- */
+if (location.protocol.startsWith('http') && /^(127\.0\.0\.1|localhost)$/.test(location.hostname)) {
+  const beat = () => fetch('api/ping', { method: 'POST', cache: 'no-store' }).catch(() => {});
+  beat(); setInterval(beat, 4000);
+}
+</script>
+</body>
+</html>
